@@ -5,6 +5,12 @@ on:
     branches: [main, develop]
   pull_request:
   workflow_dispatch:
+    inputs:
+      run_live_discovery:
+        description: Run one bounded live discovery and retain its report
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -55,3 +61,44 @@ jobs:
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" seed --dry-run
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" seed
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" status
+
+  live-discovery:
+    name: Bounded live discovery
+    if: github.event_name == 'workflow_dispatch' && inputs.run_live_discovery
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Discover bounded candidate set
+        run: |
+          mkdir -p discovery-output
+          ukei --database "${RUNNER_TEMP}/discovery.sqlite3" discover \
+            --provider all \
+            --query environment \
+            --limit 25 \
+            --output discovery-output/discovery-report.json \
+            --import-candidates
+          ukei --database "${RUNNER_TEMP}/discovery.sqlite3" status \
+            > discovery-output/catalogue-status.txt
+
+      - name: Retain discovery report
+        uses: actions/upload-artifact@v7
+        with:
+          name: ukei-discovery-report
+          path: discovery-output/
+          if-no-files-found: error
+          retention-days: 14
