@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from dataclasses import replace
 from pathlib import Path
 
@@ -101,7 +102,7 @@ def test_import_rejects_hash_tampering(catalogue: Catalogue, source: SourceRecor
 def test_integrity_errors_detect_hash_mutation(catalogue: Catalogue, source: SourceRecord) -> None:
     catalogue.upsert_source(source)
     assert catalogue.integrity_errors() == []
-    with sqlite3.connect(catalogue.path) as connection:
+    with closing(sqlite3.connect(catalogue.path)) as connection, connection:
         connection.execute(
             "UPDATE sources SET title = 'Tampered' WHERE source_id = ?", (source.source_id,)
         )
