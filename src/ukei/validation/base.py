@@ -7,6 +7,13 @@ from urllib.parse import urlparse
 
 from ukei.models import SourceRecord, ValidationResult
 
+_UNKNOWN_PREFIXES = ("not supplied", "unknown", "verify")
+
+
+def _is_explicit(value: str) -> bool:
+    normalized = value.strip().lower()
+    return bool(normalized) and not normalized.startswith(_UNKNOWN_PREFIXES)
+
 
 class Validator(ABC):
     """Validate one aspect of a source and return observations, never assertions by exception."""
@@ -25,6 +32,20 @@ class MetadataValidator(Validator):
 
     def validate(self, source: SourceRecord) -> tuple[ValidationResult, ...]:
         parsed = urlparse(source.url)
+        weighted_fields = {
+            "title": (bool(source.title.strip()), 10),
+            "publisher": (bool(source.publisher.strip()), 10),
+            "description": (bool(source.description.strip()), 10),
+            "url": (parsed.scheme == "https" and bool(parsed.netloc), 15),
+            "licence": (_is_explicit(source.licence), 15),
+            "provenance": (bool(source.provenance_url), 15),
+            "geographic_scope": (_is_explicit(source.geographic_scope), 10),
+            "update_frequency": (_is_explicit(source.update_frequency), 5),
+            "formats": (bool(source.formats), 5),
+            "themes": (bool(source.themes), 5),
+        }
+        score = sum(weight for present, weight in weighted_fields.values() if present)
+        missing = sorted(name for name, (present, _) in weighted_fields.items() if not present)
         checks = (
             ("metadata.title", bool(source.title.strip()), "Title is present"),
             ("metadata.publisher", bool(source.publisher.strip()), "Publisher is present"),
@@ -35,7 +56,7 @@ class MetadataValidator(Validator):
             ),
             (
                 "metadata.licence",
-                source.licence.strip().lower() not in {"", "unknown"},
+                _is_explicit(source.licence),
                 "Licence metadata is explicit",
             ),
             (
@@ -44,7 +65,7 @@ class MetadataValidator(Validator):
                 "Provenance URL is present",
             ),
         )
-        return tuple(
+        results = tuple(
             ValidationResult(
                 source_id=source.source_id,
                 check_name=name,
@@ -53,3 +74,15 @@ class MetadataValidator(Validator):
             )
             for name, passed, message in checks
         )
+        score_result = ValidationResult(
+            source_id=source.source_id,
+            check_name="metadata.completeness",
+            passed=score >= 70,
+            message=(
+                f"Metadata completeness score is {score}/100"
+                if score >= 70
+                else f"FAILED: Metadata completeness score is {score}/100"
+            ),
+            details={"score": score, "threshold": 70, "missing_fields": missing},
+        )
+        return (*results, score_result)

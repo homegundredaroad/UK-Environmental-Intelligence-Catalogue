@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 
 from ukei import __version__
@@ -16,7 +17,7 @@ from ukei.discovery.http import JsonHttpClient
 from ukei.logging_config import configure_logging
 from ukei.models import SourceRecord, SourceStatus, make_source_id
 from ukei.seeds import load_official_seed
-from ukei.validation import MetadataValidator
+from ukei.validation import UrlValidator, run_validation
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -60,8 +61,16 @@ def build_parser() -> argparse.ArgumentParser:
     show = subparsers.add_parser("show", help="show one complete source record")
     show.add_argument("source_id")
 
-    validate = subparsers.add_parser("validate", help="run deterministic metadata checks")
+    validate = subparsers.add_parser("validate", help="run metadata and optional live checks")
     validate.add_argument("source_id", nargs="?")
+    validate.add_argument("--live", action="store_true", help="perform bounded live URL checks")
+    validate.add_argument("--limit", type=int, help="maximum number of sources to validate")
+    validate.add_argument("--output", type=Path, help="write a machine-readable JSON report")
+    validate.add_argument(
+        "--report-only",
+        action="store_true",
+        help="return success after producing a report even when checks find failures",
+    )
 
     export = subparsers.add_parser("export", help="export canonical JSON")
     export.add_argument("output", type=Path)
@@ -201,14 +210,39 @@ def run(argv: Sequence[str] | None = None) -> int:
             if not records:
                 print("No matching sources to validate", file=sys.stderr)
                 return 2
+            if args.limit is not None and args.limit <= 0:
+                raise ValueError("--limit must be greater than zero")
+            if args.limit is not None:
+                records = records[: args.limit]
+            validation_report = run_validation(
+                tuple(records),
+                UrlValidator(settings.http_timeout_seconds) if args.live else None,
+            )
             results = tuple(
-                result for record in records for result in MetadataValidator().validate(record)
+                result for source in validation_report.sources for result in source.results
             )
             catalogue.record_validations(results)
+            records_by_id = {record.source_id: record for record in records}
+            for assessment in validation_report.sources:
+                if assessment.status_after is not assessment.status_before:
+                    catalogue.upsert_source(
+                        replace(records_by_id[assessment.source_id], status=assessment.status_after)
+                    )
             for result in results:
                 marker = "PASS" if result.passed else "FAIL"
                 print(f"{marker} {result.source_id} {result.check_name}: {result.message}")
-            return 0 if all(result.passed for result in results) else 1
+            if args.output:
+                args.output.parent.mkdir(parents=True, exist_ok=True)
+                args.output.write_text(
+                    json.dumps(validation_report.to_dict(), indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+                print(f"Report: {args.output}")
+            print(
+                f"Validated {len(validation_report.sources)} sources; "
+                f"{validation_report.to_dict()['failed_count']} require review"
+            )
+            return 0 if args.report_only or validation_report.all_passed else 1
         elif args.command == "export":
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(
@@ -228,21 +262,21 @@ def run(argv: Sequence[str] | None = None) -> int:
             selected = (
                 tuple(available.values()) if args.provider == "all" else (available[args.provider],)
             )
-            report = run_discovery(selected, args.query, args.limit)
+            discovery_report = run_discovery(selected, args.query, args.limit)
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(
-                json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n",
+                json.dumps(discovery_report.to_dict(), indent=2, sort_keys=True) + "\n",
                 encoding="utf-8",
             )
             if args.import_candidates:
                 imported = catalogue.import_records(
-                    [candidate.source.to_dict() for candidate in report.candidates]
+                    [candidate.source.to_dict() for candidate in discovery_report.candidates]
                 )
                 print(f"Imported {imported} discovered candidates")
-            print(f"Discovered {len(report.candidates)} unique candidates")
-            print(f"Removed {report.duplicates_removed} duplicate candidates")
+            print(f"Discovered {len(discovery_report.candidates)} unique candidates")
+            print(f"Removed {discovery_report.duplicates_removed} duplicate candidates")
             print(f"Report: {args.output}")
-            for error in report.errors:
+            for error in discovery_report.errors:
                 print(f"WARNING: {error}", file=sys.stderr)
         return 0
     except (CatalogueError, ConfigurationError, DiscoveryError, ValueError, OSError) as exc:

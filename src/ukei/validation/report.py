@@ -1,0 +1,110 @@
+"""Validation orchestration, lifecycle policy and report serialization."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
+
+from ukei.models import SourceRecord, SourceStatus, ValidationResult, utc_now
+from ukei.validation.base import MetadataValidator
+from ukei.validation.live import UrlValidator
+
+
+@dataclass(frozen=True, slots=True)
+class SourceValidation:
+    """All observations and the conservative lifecycle decision for one source."""
+
+    source_id: str
+    title: str
+    status_before: SourceStatus
+    status_after: SourceStatus
+    metadata_score: int
+    results: tuple[ValidationResult, ...]
+
+    @property
+    def passed(self) -> bool:
+        return all(result.passed for result in self.results)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "metadata_score": self.metadata_score,
+            "passed": self.passed,
+            "results": [result.to_dict() for result in self.results],
+            "source_id": self.source_id,
+            "status_after": self.status_after.value,
+            "status_before": self.status_before.value,
+            "title": self.title,
+        }
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationReport:
+    """Machine-readable summary of one bounded validation run."""
+
+    sources: tuple[SourceValidation, ...]
+    live: bool
+    started_at: datetime
+    completed_at: datetime
+    report_version: int = 1
+
+    @property
+    def all_passed(self) -> bool:
+        return all(source.passed for source in self.sources)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "all_passed": self.all_passed,
+            "checked_count": len(self.sources),
+            "completed_at": self.completed_at.astimezone(UTC).isoformat(),
+            "degraded_count": sum(
+                source.status_after is SourceStatus.DEGRADED for source in self.sources
+            ),
+            "failed_count": sum(not source.passed for source in self.sources),
+            "live": self.live,
+            "passed_count": sum(source.passed for source in self.sources),
+            "report_version": self.report_version,
+            "sources": [source.to_dict() for source in self.sources],
+            "started_at": self.started_at.astimezone(UTC).isoformat(),
+        }
+
+
+def run_validation(
+    sources: tuple[SourceRecord, ...], live_validator: UrlValidator | None = None
+) -> ValidationReport:
+    """Validate sources and recommend degradation only for failed live checks."""
+    if not sources:
+        raise ValueError("at least one source is required")
+    started_at = utc_now()
+    assessments: list[SourceValidation] = []
+    metadata_validator = MetadataValidator()
+    for source in sources:
+        metadata_results = metadata_validator.validate(source)
+        live_results = live_validator.validate(source) if live_validator else ()
+        results = (*metadata_results, *live_results)
+        score_result = next(
+            result for result in metadata_results if result.check_name == "metadata.completeness"
+        )
+        score = int(score_result.details["score"])
+        live_failed = any(
+            result.check_name == "live.url" and not result.passed for result in live_results
+        )
+        status_after = source.status
+        if live_failed and source.status is not SourceStatus.RETIRED:
+            status_after = SourceStatus.DEGRADED
+        assessments.append(
+            SourceValidation(
+                source_id=source.source_id,
+                title=source.title,
+                status_before=source.status,
+                status_after=status_after,
+                metadata_score=score,
+                results=results,
+            )
+        )
+    return ValidationReport(
+        sources=tuple(assessments),
+        live=live_validator is not None,
+        started_at=started_at,
+        completed_at=utc_now(),
+    )

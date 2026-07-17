@@ -1,11 +1,31 @@
 from __future__ import annotations
 
+import io
 import json
+from email.message import Message
 from pathlib import Path
+from urllib.error import URLError
 
 import pytest
 
 from ukei.cli import run
+
+
+class LiveResponse(io.BytesIO):
+    status = 200
+
+    def __init__(self) -> None:
+        super().__init__(b"x")
+        self.headers = Message()
+
+    def __enter__(self) -> LiveResponse:
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.close()
+
+    def geturl(self) -> str:
+        return "https://example.org/data"
 
 
 @pytest.fixture
@@ -154,3 +174,74 @@ def test_incomplete_demo_validation_fails_when_metadata_is_unknown(
     capsys.readouterr()
     assert run([*base, "validate", "incomplete-source"]) == 1
     assert "FAIL" in capsys.readouterr().out
+
+
+def test_live_validation_writes_report_without_promoting(
+    database: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = ["--database", str(database)]
+    assert run([*base, "seed"]) == 0
+    capsys.readouterr()
+    monkeypatch.setattr("ukei.validation.live.urlopen", lambda *_args, **_kwargs: LiveResponse())
+    report_path = tmp_path / "reports" / "validation.json"
+    assert (
+        run(
+            [
+                *base,
+                "validate",
+                "--live",
+                "--limit",
+                "2",
+                "--output",
+                str(report_path),
+            ]
+        )
+        == 0
+    )
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["live"] is True
+    assert report["checked_count"] == 2
+    assert all(source["status_after"] == "candidate" for source in report["sources"])
+
+
+def test_live_failure_degrades_and_report_only_returns_success(
+    database: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = ["--database", str(database)]
+    assert run([*base, "demo"]) == 0
+    source_id = capsys.readouterr().out.strip()
+
+    def offline(*_args: object, **_kwargs: object) -> None:
+        raise URLError("offline")
+
+    monkeypatch.setattr("ukei.validation.live.urlopen", offline)
+    report_path = tmp_path / "validation.json"
+    assert (
+        run(
+            [
+                *base,
+                "validate",
+                source_id,
+                "--live",
+                "--report-only",
+                "--output",
+                str(report_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+    assert run([*base, "list", "--format", "json", "--status", "degraded"]) == 0
+    records = json.loads(capsys.readouterr().out)
+    assert [record["source_id"] for record in records] == [source_id]
+
+
+def test_validate_rejects_nonpositive_limit(database: Path) -> None:
+    assert run(["--database", str(database), "demo"]) == 0
+    assert run(["--database", str(database), "validate", "--limit", "0"]) == 2

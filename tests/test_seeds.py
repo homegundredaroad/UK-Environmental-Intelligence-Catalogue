@@ -24,7 +24,7 @@ def test_official_seed_passes_deterministic_metadata_validation() -> None:
     results = [
         result for record in load_official_seed() for result in MetadataValidator().validate(record)
     ]
-    assert len(results) == 40
+    assert len(results) == 48
     assert all(result.passed for result in results)
 
 

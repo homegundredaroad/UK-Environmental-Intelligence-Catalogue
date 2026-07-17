@@ -3,6 +3,19 @@
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and semantic
 versioning.
 
+## [0.4.0] - 2026-07-17
+
+### Added
+
+- Weighted metadata-completeness scoring with structured missing-field evidence.
+- Bounded live URL validation recording HTTP status, elapsed time, redirect target and content type.
+- Machine-readable validation reports and opt-in GitHub Actions validation artifacts.
+
+### Changed
+
+- Failed live checks conservatively mark active records as `degraded`.
+- Passing checks retain the existing lifecycle state and never auto-promote candidates.
+
 ## [0.3.0] - 2026-07-17
 
 ### Added

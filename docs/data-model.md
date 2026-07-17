@@ -18,3 +18,11 @@ Lifecycle values are:
 An append-only event records the source, check name, pass/fail outcome, timestamp, explanatory
 message and structured details. Revalidation adds an event; it does not rewrite history.
 
+Sprint 3 metadata observations include a weighted completeness score and missing-field list. Live URL
+observations can include HTTP status, elapsed milliseconds, final redirect URL, content type, or a
+transport failure reason. These checks establish reachability and metadata completeness only; they
+do not prove data accuracy, currency, licensing suitability or fitness for a particular purpose.
+
+A failed live URL check may move an active record to `degraded`. Passing checks preserve the current
+state: candidate records require a separate human-governed promotion policy before becoming
+`verified`, and retired records are never reactivated automatically.

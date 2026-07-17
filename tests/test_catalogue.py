@@ -69,8 +69,8 @@ def test_validation_history_is_append_only(catalogue: Catalogue, source: SourceR
     results = MetadataValidator().validate(source)
     catalogue.record_validations(results)
     history = catalogue.validation_history(source.source_id)
-    assert len(history) == 5
-    assert catalogue.counts()["validation_events"] == 5
+    assert len(history) == 6
+    assert catalogue.counts()["validation_events"] == 6
     assert {result.validation_id for result in history} == {
         result.validation_id for result in results
     }
