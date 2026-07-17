@@ -52,4 +52,6 @@ jobs:
         run: |
           ukei --version
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" init
+          ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" seed --dry-run
+          ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" seed
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" status
