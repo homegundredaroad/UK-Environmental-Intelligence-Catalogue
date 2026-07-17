@@ -3,6 +3,20 @@
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and semantic
 versioning.
 
+## [0.3.0] - 2026-07-17
+
+### Added
+
+- CKAN and ArcGIS Online discovery adapters with bounded, HTTPS-only JSON retrieval.
+- Deterministic discovery de-duplication and raw-metadata provenance hashes.
+- `ukei discover` command with provider, query, limit, output and optional import controls.
+- Opt-in GitHub Actions live-discovery job with a downloadable JSON report artifact.
+
+### Changed
+
+- Candidate discovery is isolated from deterministic CI and never promotes records automatically.
+- GitHub artifact upload uses the current Node.js 24-compatible action release.
+
 ## [0.2.0] - 2026-07-17
 
 ### Added

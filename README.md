@@ -3,7 +3,7 @@
 [![CI](https://github.com/homegundredaroad/UK-Environmental-Intelligence-Catalogue/actions/workflows/ci.yml/badge.svg)](https://github.com/homegundredaroad/UK-Environmental-Intelligence-Catalogue/actions/workflows/ci.yml)
 
 An evidence-led, auditable framework for cataloguing and validating UK environmental data
-sources. Release `0.2.0` adds the first curated official-source candidate set. It does not claim
+sources. Release `0.3.0` adds bounded discovery from data.gov.uk and ArcGIS Online. It does not claim
 comprehensive source coverage and does not treat catalogue inclusion as verified evidence.
 
 ## Sprint 0 capabilities
@@ -25,6 +25,14 @@ comprehensive source coverage and does not treat catalogue inclusion as verified
 - idempotent `ukei seed` import and non-mutating `ukei seed --dry-run` review;
 - every seed remains `candidate` until repeatable live validation supports promotion.
 
+## Sprint 2 capabilities
+
+- bounded discovery adapters for the data.gov.uk CKAN API and ArcGIS Online search;
+- HTTPS-only JSON retrieval with response-size limits and independent provider error reporting;
+- deterministic URL normalisation, de-duplication and raw-metadata provenance hashes;
+- candidate-only discovery reports, with optional import into the local catalogue;
+- an opt-in browser-triggered live discovery job that publishes a downloadable JSON artifact.
+
 ## Quick start
 
 Python 3.11 or newer is required.
@@ -41,6 +49,7 @@ ukei seed --dry-run
 ukei seed
 ukei list
 ukei validate
+ukei discover --provider all --query "air quality" --output discovery.json
 ```
 
 By default the database is created at `.ukei/catalogue.sqlite3`. Override it with
@@ -59,6 +68,7 @@ ukei show SOURCE_ID               show one complete record
 ukei validate [SOURCE_ID]         run deterministic metadata validation
 ukei export OUTPUT.json           create a canonical JSON export
 ukei import-json INPUT.json       import records from a canonical export
+ukei discover [OPTIONS]           discover candidate sources from official catalogue APIs
 ```
 
 Run `ukei COMMAND --help` for complete arguments. Commands return non-zero exit codes for invalid
@@ -76,6 +86,9 @@ input or failed validation, making them suitable for automation.
 See [`docs/architecture.md`](docs/architecture.md) for boundaries and design decisions and
 [`CONTRIBUTING.md`](CONTRIBUTING.md) for the quality gate. Windows upload and first-run instructions
 are in [`docs/windows-quickstart.md`](docs/windows-quickstart.md).
+
+Live discovery is deliberately opt-in in GitHub Actions: open **Actions → CI → Run workflow**, tick
+**Run bounded live discovery**, then download the `ukei-discovery-report` artifact after the run.
 
 ## Evidence and safety position
 
