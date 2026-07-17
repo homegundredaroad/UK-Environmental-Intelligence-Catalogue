@@ -57,6 +57,10 @@ class ValidationReport:
         return all(source.passed for source in self.sources)
 
     def to_dict(self) -> dict[str, Any]:
+        results = [result for source in self.sources for result in source.results]
+        resource_results = [
+            result for result in results if result.check_name.startswith("resource.")
+        ]
         return {
             "all_passed": self.all_passed,
             "checked_count": len(self.sources),
@@ -69,6 +73,19 @@ class ValidationReport:
             "passed_count": sum(source.passed for source in self.sources),
             "report_version": self.report_version,
             "resource_count": sum(source.resource_count for source in self.sources),
+            "resource_checks": {
+                "attempted": sum(result.check_name == "resource.url" for result in results),
+                "blocked_by_policy": sum(
+                    result.check_name == "resource.url"
+                    and result.details.get("outcome") == "blocked_by_policy"
+                    for result in results
+                ),
+                "failed": sum(not result.passed for result in resource_results),
+                "passed": sum(result.passed for result in resource_results),
+                "semantically_validated_services": sum(
+                    result.check_name == "resource.service" and result.passed for result in results
+                ),
+            },
             "resources": self.resources,
             "sources": [source.to_dict() for source in self.sources],
             "started_at": self.started_at.astimezone(UTC).isoformat(),
@@ -96,7 +113,9 @@ def run_validation(
         )
         score = int(score_result.details["score"])
         material_failed = any(
-            result.check_name in {"live.url", "resource.url"} and not result.passed
+            result.check_name in {"live.url", "resource.url", "resource.service"}
+            and not result.passed
+            and result.details.get("outcome") != "blocked_by_policy"
             for result in (*live_results, *resource_results)
         )
         status_after = source.status

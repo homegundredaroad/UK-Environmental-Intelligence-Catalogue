@@ -206,7 +206,9 @@ def test_resource_validator_flags_absence_and_staleness(source: SourceRecord) ->
     )
     results = ResourceValidator().validate(replace(source, resources=(stale,)))
     assert not next(result for result in results if result.check_name == "resource.licence").passed
-    assert not next(result for result in results if result.check_name == "resource.recency").passed
+    recency = next(result for result in results if result.check_name == "resource.recency")
+    assert recency.passed
+    assert recency.details["outcome"] == "stale_warning"
 
 
 def test_failed_resource_url_degrades_candidate(
@@ -228,6 +230,53 @@ def test_failed_resource_url_degrades_candidate(
         resource_validator=ResourceValidator(),
     )
     assert report.sources[0].status_after is SourceStatus.DEGRADED
+
+
+def test_http_policy_block_does_not_claim_resource_is_unreachable(source: SourceRecord) -> None:
+    resource = ResourceReference(
+        resource_id="legacy-http",
+        url="http://example.gov.uk/data.csv",
+        licence="OGL-3.0",
+        last_modified=datetime(2026, 7, 1, tzinfo=UTC),
+    )
+    report = run_validation(
+        (replace(source, resources=(resource,)),), resource_validator=ResourceValidator()
+    )
+    url_result = next(
+        result for result in report.sources[0].results if result.check_name == "resource.url"
+    )
+    assert url_result.details["outcome"] == "blocked_by_policy"
+    assert report.sources[0].status_after is SourceStatus.CANDIDATE
+
+
+def test_arcgis_service_metadata_is_semantically_checked(
+    source: SourceRecord, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resource = ResourceReference(
+        resource_id="feature-service",
+        url="https://services.arcgis.com/example/FeatureServer",
+        format="Feature Service",
+        licence="Open Government Licence 3.0",
+        last_modified=datetime(2024, 1, 1, tzinfo=UTC),
+    )
+    responses = iter(
+        (
+            FakeResponse(),
+            FakeResponse(b'{"currentVersion": 11.3, "layers": [{"id": 0}], "tables": []}'),
+        )
+    )
+    monkeypatch.setattr("ukei.validation.live.urlopen", lambda *_args, **_kwargs: next(responses))
+    monkeypatch.setattr(
+        "ukei.validation.resources.urlopen", lambda *_args, **_kwargs: next(responses)
+    )
+    report = run_validation(
+        (replace(source, resources=(resource,)),), resource_validator=ResourceValidator()
+    )
+    service = next(
+        result for result in report.sources[0].results if result.check_name == "resource.service"
+    )
+    assert service.passed
+    assert service.details["layer_count"] == 1
 
 
 def test_validation_rejects_empty_batch_and_timeout() -> None:

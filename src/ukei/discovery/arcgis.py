@@ -9,6 +9,7 @@ from typing import Any
 from ukei.discovery.base import DiscoveryCandidate, DiscoveryConnector, DiscoveryError
 from ukei.discovery.http import JsonHttpClient
 from ukei.models import ResourceReference, SourceRecord, make_source_id, utc_now
+from ukei.url_safety import url_error
 
 
 class ArcGisConnector(DiscoveryConnector):
@@ -68,7 +69,7 @@ class ArcGisConnector(DiscoveryConnector):
                         authoritative="authoritative" in _text(item.get("contentStatus")).lower(),
                     ),
                 )
-                if resource_url.startswith(("http://", "https://"))
+                if url_error(resource_url) is None
                 else ()
             )
             source = SourceRecord(

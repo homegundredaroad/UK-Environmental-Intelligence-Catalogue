@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+- Add strict malformed and HTML-contaminated URL rejection.
+- Distinguish policy-blocked HTTP resources from confirmed unreachable resources.
+- Treat age as a review warning until publisher cadence is known.
+- Add conservative UK licence classification and HTML sanitisation.
+- Add semantic ArcGIS Feature/Map Service metadata validation.
+- Add richer resource-check counters to validation reports.
+- Add the browser-triggered VVIP multi-theme comprehensive scan workflow.
+
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and semantic
 versioning.
 

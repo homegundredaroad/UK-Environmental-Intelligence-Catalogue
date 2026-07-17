@@ -110,6 +110,25 @@ def test_ckan_skips_malformed_items() -> None:
     assert CkanConnector().parse_response(payload) == ()
 
 
+def test_ckan_rejects_html_contaminated_resource_url() -> None:
+    payload = ckan_payload()
+    result = payload["result"]
+    assert isinstance(result, dict)
+    records = result["results"]
+    assert isinstance(records, list)
+    record = records[0]
+    assert isinstance(record, dict)
+    record["resources"] = [
+        {
+            "id": "bad-1",
+            "url": "http://<div>https://example.gov.uk/data.csv</div>",
+            "format": "CSV",
+        }
+    ]
+    candidate = CkanConnector().parse_response(payload)[0]
+    assert candidate.source.resources == ()
+
+
 def test_arcgis_connector_parses_candidates() -> None:
     client = FakeClient(arcgis_payload())
     connector = ArcGisConnector(client=client)  # type: ignore[arg-type]

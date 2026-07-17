@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import ipaddress
 from time import monotonic
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from ukei.models import SourceRecord, ValidationResult
+from ukei.url_safety import url_error
 
 
 class UrlValidator:
@@ -43,7 +42,9 @@ def bounded_url_result(
     details = dict(context or {})
     guard_error = _public_https_error(url)
     if guard_error:
-        details.update({"failure_reason": guard_error, "status_code": None})
+        details.update(
+            {"failure_reason": guard_error, "outcome": "blocked_by_policy", "status_code": None}
+        )
         return ValidationResult(
             source_id=source_id,
             check_name=check_name,
@@ -81,6 +82,7 @@ def bounded_url_result(
                 "elapsed_ms": elapsed_ms,
                 "final_url": final_url,
                 "status_code": status,
+                "outcome": "reachable_secure" if passed else "redirect_blocked",
             }
         )
         return ValidationResult(
@@ -111,6 +113,7 @@ def _url_failure(
             "elapsed_ms": elapsed_ms,
             "status_code": status_code,
             "failure_reason": reason,
+            "outcome": "unreachable",
         }
     )
     return ValidationResult(
@@ -123,14 +126,4 @@ def _url_failure(
 
 
 def _public_https_error(url: str) -> str | None:
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or not parsed.hostname:
-        return "only absolute HTTPS URLs are allowed"
-    hostname = parsed.hostname.lower().rstrip(".")
-    if hostname == "localhost" or hostname.endswith(".localhost") or hostname.endswith(".local"):
-        return "local hostnames are not allowed"
-    try:
-        address = ipaddress.ip_address(hostname)
-    except ValueError:
-        return None
-    return None if address.is_global else "non-public IP addresses are not allowed"
+    return url_error(url, require_https=True, public_only=True)

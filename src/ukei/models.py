@@ -11,7 +11,8 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Any
-from urllib.parse import urlparse
+
+from ukei.url_safety import url_error
 
 _ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{2,127}$")
 
@@ -59,13 +60,10 @@ class ResourceReference:
     def __post_init__(self) -> None:
         if not self.resource_id.strip():
             raise ValueError("resource_id must not be empty")
-        parsed = urlparse(self.url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("resource URL must be an absolute HTTP(S) URL")
-        if self.provenance_url:
-            provenance = urlparse(self.provenance_url)
-            if provenance.scheme not in {"http", "https"} or not provenance.netloc:
-                raise ValueError("resource provenance_url must be an absolute HTTP(S) URL")
+        if error := url_error(self.url):
+            raise ValueError(f"invalid resource URL: {error}")
+        if self.provenance_url and (error := url_error(self.provenance_url)):
+            raise ValueError(f"invalid resource provenance_url: {error}")
         if self.last_modified is not None and self.last_modified.tzinfo is None:
             raise ValueError("resource timestamps must be timezone-aware")
 
@@ -141,13 +139,10 @@ class SourceRecord:
         for name, value in (("title", self.title), ("publisher", self.publisher)):
             if not value.strip():
                 raise ValueError(f"{name} must not be empty")
-        parsed = urlparse(self.url)
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("url must be an absolute HTTP(S) URL")
-        if self.provenance_url:
-            provenance = urlparse(self.provenance_url)
-            if provenance.scheme not in {"http", "https"} or not provenance.netloc:
-                raise ValueError("provenance_url must be an absolute HTTP(S) URL")
+        if error := url_error(self.url):
+            raise ValueError(f"invalid source URL: {error}")
+        if self.provenance_url and (error := url_error(self.provenance_url)):
+            raise ValueError(f"invalid provenance_url: {error}")
         timestamps = (self.discovered_at, self.last_verified_at, self.created_at, self.updated_at)
         for timestamp in timestamps:
             if timestamp is not None and timestamp.tzinfo is None:

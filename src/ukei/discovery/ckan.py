@@ -9,6 +9,7 @@ from typing import Any
 from ukei.discovery.base import DiscoveryCandidate, DiscoveryConnector, DiscoveryError
 from ukei.discovery.http import JsonHttpClient
 from ukei.models import ResourceReference, SourceRecord, make_source_id, utc_now
+from ukei.url_safety import url_error
 
 
 class CkanConnector(DiscoveryConnector):
@@ -110,7 +111,7 @@ def _resources(
         if not isinstance(raw, Mapping):
             continue
         url = _text(raw.get("url"))
-        if not url.startswith(("http://", "https://")):
+        if url_error(url) is not None:
             continue
         resource_id = _text(raw.get("id")) or make_source_id(url, "ckan-resource")
         resources.append(
