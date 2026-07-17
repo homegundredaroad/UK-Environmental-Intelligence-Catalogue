@@ -16,6 +16,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_resource_validation:
+        description: Discover and validate underlying files and services
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -157,5 +162,60 @@ jobs:
         with:
           name: ukei-validation-report
           path: validation-output/
+          if-no-files-found: error
+          retention-days: 14
+
+  resource-validation:
+    name: Bounded resource validation
+    if: github.event_name == 'workflow_dispatch' && inputs.run_resource_validation
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      UKEI_HTTP_TIMEOUT_SECONDS: "10"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Discover bounded candidate and resource set
+        run: |
+          mkdir -p resource-output
+          ukei --database "${RUNNER_TEMP}/resources.sqlite3" discover \
+            --provider all \
+            --query environment \
+            --limit 5 \
+            --output resource-output/discovery-report.json \
+            --import-candidates
+
+      - name: Validate landing pages and underlying resources
+        run: |
+          ukei --database "${RUNNER_TEMP}/resources.sqlite3" validate \
+            --live \
+            --resources \
+            --limit 10 \
+            --resource-limit 2 \
+            --report-only \
+            --output resource-output/resource-validation-report.json
+          ukei --database "${RUNNER_TEMP}/resources.sqlite3" export \
+            resource-output/catalogue-snapshot.json
+          ukei --database "${RUNNER_TEMP}/resources.sqlite3" status \
+            > resource-output/catalogue-status.txt
+
+      - name: Retain resource evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ukei-resource-validation-report
+          path: resource-output/
           if-no-files-found: error
           retention-days: 14
