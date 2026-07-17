@@ -67,6 +67,27 @@ def test_demo_is_explicit_and_reproducible(
     assert "not verified" in records[0]["title"].lower()
 
 
+def test_seed_dry_run_does_not_write(database: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    base = ["--database", str(database)]
+    assert run([*base, "seed", "--dry-run"]) == 0
+    output = capsys.readouterr().out
+    assert "Validated 8 candidate seed records" in output
+    assert not database.exists()
+
+
+def test_seed_is_idempotent_and_remains_candidate(
+    database: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    base = ["--database", str(database)]
+    assert run([*base, "seed"]) == 0
+    assert run([*base, "seed"]) == 0
+    capsys.readouterr()
+    assert run([*base, "list", "--format", "json", "--status", "candidate"]) == 0
+    records = json.loads(capsys.readouterr().out)
+    assert len(records) == 8
+    assert all(record["status"] == "candidate" for record in records)
+
+
 def test_export_import(database: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     base = ["--database", str(database)]
     export_path = tmp_path / "exports" / "catalogue.json"

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ukei-catalogue"
-version = "0.1.0"
+version = "0.2.0"
 description = "A verifiable catalogue framework for UK environmental data sources."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -41,8 +41,12 @@ Issues = "https://github.com/homegundredaroad/UK-Environmental-Intelligence-Cata
 [tool.hatch.build.targets.wheel]
 packages = ["src/ukei"]
 
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/docs", "/examples", "/README.md", "/CHANGELOG.md"]
+
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers --cov=ukei --cov-report=term-missing --cov-fail-under=90"
+filterwarnings = ["error::ResourceWarning"]
 testpaths = ["tests"]
 
 [tool.coverage.run]
@@ -66,4 +70,3 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 python_version = "3.11"
 strict = true
 files = ["src", "tests"]
-

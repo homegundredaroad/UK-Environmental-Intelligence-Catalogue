@@ -3,8 +3,8 @@
 [![CI](https://github.com/homegundredaroad/UK-Environmental-Intelligence-Catalogue/actions/workflows/ci.yml/badge.svg)](https://github.com/homegundredaroad/UK-Environmental-Intelligence-Catalogue/actions/workflows/ci.yml)
 
 An evidence-led, auditable framework for cataloguing and validating UK environmental data
-sources. Release `0.1.0` establishes the engineering foundation: it does not claim comprehensive
-source coverage and does not treat discovered data as verified evidence.
+sources. Release `0.2.0` adds the first curated official-source candidate set. It does not claim
+comprehensive source coverage and does not treat catalogue inclusion as verified evidence.
 
 ## Sprint 0 capabilities
 
@@ -16,6 +16,14 @@ source coverage and does not treat discovered data as verified evidence.
 - versioned SQLite catalogue with validation history;
 - JSON import/export and catalogue integrity checks;
 - strict tests, linting, typing and GitHub Actions CI.
+
+## Sprint 1 capabilities
+
+- eight manually reviewed, high-value official UK environmental data services;
+- explicit licence positions, provenance URLs, formats, themes and coverage notes;
+- deterministic packaged seed manifest with duplicate and policy guards;
+- idempotent `ukei seed` import and non-mutating `ukei seed --dry-run` review;
+- every seed remains `candidate` until repeatable live validation supports promotion.
 
 ## Quick start
 
@@ -29,7 +37,8 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 ukei init
 ukei status
-ukei demo
+ukei seed --dry-run
+ukei seed
 ukei list
 ukei validate
 ```
@@ -44,6 +53,7 @@ ukei init                         initialise or migrate the catalogue
 ukei status                       show catalogue and configuration status
 ukei add --title ... --url ...    add or update a source record
 ukei demo                         add a clearly labelled demonstration record
+ukei seed [--dry-run]             load or inspect curated candidate sources
 ukei list [--format table|json]   list current source records
 ukei show SOURCE_ID               show one complete record
 ukei validate [SOURCE_ID]         run deterministic metadata validation

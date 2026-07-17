@@ -13,6 +13,7 @@ from ukei.catalogue import Catalogue, CatalogueError
 from ukei.config import ConfigurationError, Settings
 from ukei.logging_config import configure_logging
 from ukei.models import SourceRecord, SourceStatus, make_source_id
+from ukei.seeds import load_official_seed
 from ukei.validation import MetadataValidator
 
 
@@ -44,6 +45,11 @@ def build_parser() -> argparse.ArgumentParser:
     add.add_argument("--connector", default="manual")
 
     subparsers.add_parser("demo", help="add a clearly labelled demonstration record")
+
+    seed = subparsers.add_parser("seed", help="load the reviewed official-source candidate set")
+    seed.add_argument(
+        "--dry-run", action="store_true", help="validate and list seed records without writing"
+    )
 
     listing = subparsers.add_parser("list", help="list source records")
     listing.add_argument("--format", choices=("table", "json"), default="table")
@@ -148,6 +154,16 @@ def run(argv: Sequence[str] | None = None) -> int:
             )
             catalogue.upsert_source(record)
             print(record.source_id)
+        elif args.command == "seed":
+            seed_records = load_official_seed()
+            if args.dry_run:
+                print(_render_table(seed_records))
+                print(f"Validated {len(seed_records)} candidate seed records; no changes written")
+            else:
+                imported = catalogue.import_records(
+                    [record.with_current_hash().to_dict() for record in seed_records]
+                )
+                print(f"Imported {imported} curated candidate records")
         elif args.command == "list":
             status = SourceStatus(args.status) if args.status else None
             records = catalogue.list_sources(status=status)
