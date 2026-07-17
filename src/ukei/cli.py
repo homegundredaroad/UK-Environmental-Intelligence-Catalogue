@@ -11,6 +11,8 @@ from pathlib import Path
 from ukei import __version__
 from ukei.catalogue import Catalogue, CatalogueError
 from ukei.config import ConfigurationError, Settings
+from ukei.discovery import ArcGisConnector, CkanConnector, DiscoveryError, run_discovery
+from ukei.discovery.http import JsonHttpClient
 from ukei.logging_config import configure_logging
 from ukei.models import SourceRecord, SourceStatus, make_source_id
 from ukei.seeds import load_official_seed
@@ -66,6 +68,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     import_json = subparsers.add_parser("import-json", help="import canonical JSON")
     import_json.add_argument("input", type=Path)
+
+    discover = subparsers.add_parser("discover", help="discover untrusted source candidates")
+    discover.add_argument("--provider", choices=("all", "ckan", "arcgis"), default="all")
+    discover.add_argument("--query", default="environment")
+    discover.add_argument("--limit", type=int, default=25)
+    discover.add_argument("--output", type=Path, default=Path("discovery-report.json"))
+    discover.add_argument(
+        "--import-candidates",
+        action="store_true",
+        help="write discovered candidates to the local catalogue",
+    )
     return parser
 
 
@@ -206,8 +219,33 @@ def run(argv: Sequence[str] | None = None) -> int:
         elif args.command == "import-json":
             count = catalogue.import_records(_load_import(args.input))
             print(f"Imported {count} records")
+        elif args.command == "discover":
+            client = JsonHttpClient(settings.http_timeout_seconds)
+            available = {
+                "ckan": CkanConnector(client),
+                "arcgis": ArcGisConnector(client),
+            }
+            selected = (
+                tuple(available.values()) if args.provider == "all" else (available[args.provider],)
+            )
+            report = run_discovery(selected, args.query, args.limit)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+            if args.import_candidates:
+                imported = catalogue.import_records(
+                    [candidate.source.to_dict() for candidate in report.candidates]
+                )
+                print(f"Imported {imported} discovered candidates")
+            print(f"Discovered {len(report.candidates)} unique candidates")
+            print(f"Removed {report.duplicates_removed} duplicate candidates")
+            print(f"Report: {args.output}")
+            for error in report.errors:
+                print(f"WARNING: {error}", file=sys.stderr)
         return 0
-    except (CatalogueError, ConfigurationError, ValueError, OSError) as exc:
+    except (CatalogueError, ConfigurationError, DiscoveryError, ValueError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
