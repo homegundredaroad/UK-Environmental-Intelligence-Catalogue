@@ -14,6 +14,7 @@ class ArcGisConnector(DiscoveryConnector):
     """Discover geospatial candidates through the ArcGIS sharing REST API."""
 
     name = "arcgis:natural-england"
+    owner = "Opendata_NE"
 
     def __init__(
         self,
@@ -24,7 +25,7 @@ class ArcGisConnector(DiscoveryConnector):
         self.endpoint = endpoint
 
     def discover(self, query: str, limit: int) -> tuple[DiscoveryCandidate, ...]:
-        scoped_query = f'({query}) AND (owner:naturalengland OR owner:"Natural England")'
+        scoped_query = f"({query}) AND owner:{self.owner}"
         payload = self.client.get_json(
             self.endpoint, {"q": scoped_query, "num": limit, "f": "json", "sortField": "modified"}
         )

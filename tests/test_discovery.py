@@ -101,7 +101,7 @@ def test_arcgis_connector_parses_candidates() -> None:
     assert len(candidates) == 1
     assert candidates[0].source.publisher == "NaturalEngland"
     assert candidates[0].source.formats == ("Feature Service",)
-    assert "owner:naturalengland" in str(client.calls[0][1]["q"])
+    assert client.calls[0][1]["q"] == "(habitat) AND owner:Opendata_NE"
 
 
 @pytest.mark.parametrize("payload", [{}, {"results": [], "error": {"code": 400}}])
