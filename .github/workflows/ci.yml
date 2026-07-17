@@ -11,6 +11,11 @@ on:
         required: false
         default: false
         type: boolean
+      run_live_validation:
+        description: Discover and validate one bounded candidate set
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -60,6 +65,7 @@ jobs:
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" init
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" seed --dry-run
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" seed
+          ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" validate --limit 2
           ukei --database "${RUNNER_TEMP}/catalogue.sqlite3" status
 
   live-discovery:
@@ -100,5 +106,56 @@ jobs:
         with:
           name: ukei-discovery-report
           path: discovery-output/
+          if-no-files-found: error
+          retention-days: 14
+
+  live-validation:
+    name: Bounded live validation
+    if: github.event_name == 'workflow_dispatch' && inputs.run_live_validation
+    needs: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      UKEI_HTTP_TIMEOUT_SECONDS: "10"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install package
+        run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Discover bounded candidate set
+        run: |
+          mkdir -p validation-output
+          ukei --database "${RUNNER_TEMP}/validation.sqlite3" discover \
+            --provider all \
+            --query environment \
+            --limit 10 \
+            --output validation-output/discovery-report.json \
+            --import-candidates
+
+      - name: Validate candidate metadata and URLs
+        run: |
+          ukei --database "${RUNNER_TEMP}/validation.sqlite3" validate \
+            --live \
+            --limit 20 \
+            --report-only \
+            --output validation-output/validation-report.json
+          ukei --database "${RUNNER_TEMP}/validation.sqlite3" status \
+            > validation-output/catalogue-status.txt
+
+      - name: Retain validation evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: ukei-validation-report
+          path: validation-output/
           if-no-files-found: error
           retention-days: 14
