@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import io
 from dataclasses import replace
+from datetime import UTC, datetime
 from email.message import Message
 from urllib.error import HTTPError, URLError
 
 import pytest
 
-from ukei.models import SourceRecord, SourceStatus
-from ukei.validation import MetadataValidator, UrlValidator, run_validation
+from ukei.models import ResourceReference, SourceRecord, SourceStatus
+from ukei.validation import MetadataValidator, ResourceValidator, UrlValidator, run_validation
 
 
 class FakeResponse(io.BytesIO):
@@ -163,8 +164,76 @@ def test_failed_live_check_degrades_active_but_not_retired(
     assert report.to_dict()["degraded_count"] == 1
 
 
+def test_resource_validator_records_url_licence_and_recency(
+    source: SourceRecord, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resource = ResourceReference(
+        resource_id="csv-1",
+        url="https://example.gov.uk/data.csv",
+        name="Readings",
+        format="CSV",
+        media_type="text/csv",
+        licence="Open Government Licence 3.0",
+        last_modified=datetime(2026, 7, 1, tzinfo=UTC),
+        provenance_url=source.provenance_url,
+        authoritative=True,
+    )
+    monkeypatch.setattr("ukei.validation.live.urlopen", lambda *_args, **_kwargs: FakeResponse())
+    report = run_validation(
+        (replace(source, resources=(resource,)),),
+        resource_validator=ResourceValidator(),
+    )
+    checks = {result.check_name: result for result in report.sources[0].results}
+    assert checks["resource.url"].passed
+    assert checks["resource.url"].details["resource_id"] == "csv-1"
+    assert checks["resource.licence"].passed
+    assert checks["resource.recency"].passed
+    assert report.sources[0].status_after is SourceStatus.CANDIDATE
+    assert report.to_dict()["resource_count"] == 1
+    assert report.to_dict()["resources"] is True
+
+
+def test_resource_validator_flags_absence_and_staleness(source: SourceRecord) -> None:
+    absent = ResourceValidator().validate(source)
+    assert absent[0].check_name == "resource.presence"
+    assert not absent[0].passed
+
+    stale = ResourceReference(
+        resource_id="old-1",
+        url="http://example.gov.uk/old.csv",
+        licence="unknown",
+        last_modified=datetime(2020, 1, 1, tzinfo=UTC),
+    )
+    results = ResourceValidator().validate(replace(source, resources=(stale,)))
+    assert not next(result for result in results if result.check_name == "resource.licence").passed
+    assert not next(result for result in results if result.check_name == "resource.recency").passed
+
+
+def test_failed_resource_url_degrades_candidate(
+    source: SourceRecord, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resource = ResourceReference(
+        resource_id="resource-1",
+        url="https://example.gov.uk/data.csv",
+        licence="OGL-3.0",
+        last_modified=datetime(2026, 7, 1, tzinfo=UTC),
+    )
+
+    def offline(*_args: object, **_kwargs: object) -> None:
+        raise URLError("offline")
+
+    monkeypatch.setattr("ukei.validation.live.urlopen", offline)
+    report = run_validation(
+        (replace(source, resources=(resource,)),),
+        resource_validator=ResourceValidator(),
+    )
+    assert report.sources[0].status_after is SourceStatus.DEGRADED
+
+
 def test_validation_rejects_empty_batch_and_timeout() -> None:
     with pytest.raises(ValueError, match="at least one"):
         run_validation(())
     with pytest.raises(ValueError, match="greater than zero"):
         UrlValidator(0)
+    with pytest.raises(ValueError, match="greater than zero"):
+        ResourceValidator(max_resources_per_source=0)

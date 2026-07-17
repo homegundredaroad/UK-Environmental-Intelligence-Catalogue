@@ -11,9 +11,16 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from ukei.models import SourceRecord, SourceStatus, ValidationResult, parse_datetime, utc_now
+from ukei.models import (
+    ResourceReference,
+    SourceRecord,
+    SourceStatus,
+    ValidationResult,
+    parse_datetime,
+    utc_now,
+)
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _MIGRATION_1 = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -56,6 +63,8 @@ CREATE INDEX IF NOT EXISTS idx_validation_source_time
     ON validation_events(source_id, checked_at DESC);
 """
 
+_MIGRATION_2 = "ALTER TABLE sources ADD COLUMN resources_json TEXT NOT NULL DEFAULT '[]'"
+
 
 class CatalogueError(RuntimeError):
     """The catalogue could not complete a requested operation."""
@@ -88,7 +97,17 @@ class Catalogue:
             connection.executescript(_MIGRATION_1)
             connection.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-                (SCHEMA_VERSION, utc_now().isoformat()),
+                (1, utc_now().isoformat()),
+            )
+            columns = {
+                str(row["name"])
+                for row in connection.execute("PRAGMA table_info(sources)").fetchall()
+            }
+            if "resources_json" not in columns:
+                connection.execute(_MIGRATION_2)
+            connection.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+                (2, utc_now().isoformat()),
             )
         return SCHEMA_VERSION
 
@@ -123,12 +142,14 @@ class Catalogue:
                     """
                     INSERT INTO sources (
                         source_id, title, url, publisher, description, licence, geographic_scope,
-                        update_frequency, formats_json, themes_json, status, discovered_at,
+                        update_frequency, formats_json, themes_json, resources_json, status,
+                        discovered_at,
                         last_verified_at, provenance_url, connector, content_hash,
                         created_at, updated_at
                     ) VALUES (
                         :source_id, :title, :url, :publisher, :description, :licence,
-                        :geographic_scope, :update_frequency, :formats_json, :themes_json, :status,
+                        :geographic_scope, :update_frequency, :formats_json, :themes_json,
+                        :resources_json, :status,
                         :discovered_at, :last_verified_at, :provenance_url, :connector,
                         :content_hash,
                         :created_at, :updated_at
@@ -139,6 +160,7 @@ class Catalogue:
                         geographic_scope=excluded.geographic_scope,
                         update_frequency=excluded.update_frequency,
                         formats_json=excluded.formats_json, themes_json=excluded.themes_json,
+                        resources_json=excluded.resources_json,
                         status=excluded.status, discovered_at=excluded.discovered_at,
                         last_verified_at=excluded.last_verified_at,
                         provenance_url=excluded.provenance_url, connector=excluded.connector,
@@ -277,6 +299,9 @@ class Catalogue:
             "update_frequency": source.update_frequency,
             "formats_json": json.dumps(sorted(set(source.formats))),
             "themes_json": json.dumps(sorted(set(source.themes))),
+            "resources_json": json.dumps(
+                [resource.to_dict() for resource in source.resources], sort_keys=True
+            ),
             "status": source.status.value,
             "discovered_at": source.discovered_at.astimezone(UTC).isoformat(),
             "last_verified_at": (
@@ -304,6 +329,9 @@ class Catalogue:
             update_frequency=row["update_frequency"],
             formats=tuple(json.loads(row["formats_json"])),
             themes=tuple(json.loads(row["themes_json"])),
+            resources=tuple(
+                ResourceReference.from_dict(value) for value in json.loads(row["resources_json"])
+            ),
             status=SourceStatus(row["status"]),
             discovered_at=parse_datetime(row["discovered_at"]) or datetime.now(UTC),
             last_verified_at=parse_datetime(row["last_verified_at"]),

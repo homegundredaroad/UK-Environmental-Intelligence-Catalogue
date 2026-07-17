@@ -3,7 +3,7 @@
 [![CI](https://github.com/homegundredaroad/UK-Environmental-Intelligence-Catalogue/actions/workflows/ci.yml/badge.svg)](https://github.com/homegundredaroad/UK-Environmental-Intelligence-Catalogue/actions/workflows/ci.yml)
 
 An evidence-led, auditable framework for cataloguing and validating UK environmental data
-sources. Release `0.4.0` adds evidence-bearing metadata and live URL validation. It does not claim
+sources. Release `0.5.0` adds underlying resource extraction and validation. It does not claim
 comprehensive source coverage and does not treat catalogue inclusion as verified evidence.
 
 ## Sprint 0 capabilities
@@ -42,6 +42,15 @@ comprehensive source coverage and does not treat catalogue inclusion as verified
   never promote candidates automatically;
 - an opt-in browser-triggered validation job with a downloadable evidence artifact.
 
+## Sprint 4 capabilities
+
+- versioned schema-2 storage for underlying files and machine-service references;
+- CKAN resource URL, format, media type, modification date, licence and provenance extraction;
+- ArcGIS service URL, modification date and authoritative-status extraction;
+- normalized Natural England publisher identity while retaining provider provenance;
+- separate bounded checks for resource reachability, licence evidence and recency;
+- opt-in resource-validation artifacts containing reports and a canonical catalogue snapshot.
+
 ## Quick start
 
 Python 3.11 or newer is required.
@@ -59,6 +68,7 @@ ukei seed
 ukei list
 ukei validate
 ukei validate --live --limit 20 --output validation-report.json
+ukei validate --live --resources --resource-limit 2 --output resource-report.json
 ukei discover --provider all --query "air quality" --output discovery.json
 ```
 
@@ -75,7 +85,7 @@ ukei demo                         add a clearly labelled demonstration record
 ukei seed [--dry-run]             load or inspect curated candidate sources
 ukei list [--format table|json]   list current source records
 ukei show SOURCE_ID               show one complete record
-ukei validate [SOURCE_ID]         run metadata and optional bounded live validation
+ukei validate [SOURCE_ID]         run metadata, landing-page and resource validation
 ukei export OUTPUT.json           create a canonical JSON export
 ukei import-json INPUT.json       import records from a canonical export
 ukei discover [OPTIONS]           discover candidate sources from official catalogue APIs
@@ -101,6 +111,8 @@ Live discovery is deliberately opt-in in GitHub Actions: open **Actions â†’ CI â
 **Run bounded live discovery**, then download the `ukei-discovery-report` artifact after the run.
 Live validation is separately opt-in using **Discover and validate one bounded candidate set**; its
 artifact is named `ukei-validation-report`.
+Resource validation is separately opt-in using **Discover and validate underlying files and
+services**; its artifact is named `ukei-resource-validation-report`.
 
 ## Evidence and safety position
 

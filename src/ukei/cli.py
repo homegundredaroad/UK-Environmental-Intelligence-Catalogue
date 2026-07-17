@@ -17,7 +17,7 @@ from ukei.discovery.http import JsonHttpClient
 from ukei.logging_config import configure_logging
 from ukei.models import SourceRecord, SourceStatus, make_source_id
 from ukei.seeds import load_official_seed
-from ukei.validation import UrlValidator, run_validation
+from ukei.validation import ResourceValidator, UrlValidator, run_validation
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -64,6 +64,17 @@ def build_parser() -> argparse.ArgumentParser:
     validate = subparsers.add_parser("validate", help="run metadata and optional live checks")
     validate.add_argument("source_id", nargs="?")
     validate.add_argument("--live", action="store_true", help="perform bounded live URL checks")
+    validate.add_argument(
+        "--resources",
+        action="store_true",
+        help="validate underlying resource URLs, licence evidence and recency",
+    )
+    validate.add_argument(
+        "--resource-limit",
+        type=int,
+        default=2,
+        help="maximum resources checked per source (default: 2)",
+    )
     validate.add_argument("--limit", type=int, help="maximum number of sources to validate")
     validate.add_argument("--output", type=Path, help="write a machine-readable JSON report")
     validate.add_argument(
@@ -212,11 +223,21 @@ def run(argv: Sequence[str] | None = None) -> int:
                 return 2
             if args.limit is not None and args.limit <= 0:
                 raise ValueError("--limit must be greater than zero")
+            if args.resource_limit <= 0:
+                raise ValueError("--resource-limit must be greater than zero")
             if args.limit is not None:
                 records = records[: args.limit]
             validation_report = run_validation(
                 tuple(records),
                 UrlValidator(settings.http_timeout_seconds) if args.live else None,
+                (
+                    ResourceValidator(
+                        settings.http_timeout_seconds,
+                        max_resources_per_source=args.resource_limit,
+                    )
+                    if args.resources
+                    else None
+                ),
             )
             results = tuple(
                 result for source in validation_report.sources for result in source.results

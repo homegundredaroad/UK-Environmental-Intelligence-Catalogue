@@ -8,8 +8,8 @@ from pathlib import Path
 
 import pytest
 
-from ukei.catalogue import SCHEMA_VERSION, Catalogue, CatalogueError
-from ukei.models import SourceRecord, SourceStatus
+from ukei.catalogue import _MIGRATION_1, SCHEMA_VERSION, Catalogue, CatalogueError
+from ukei.models import ResourceReference, SourceRecord, SourceStatus
 from ukei.validation import MetadataValidator
 
 
@@ -25,8 +25,31 @@ def test_initialize_is_idempotent(catalogue: Catalogue) -> None:
     assert catalogue.schema_version() == SCHEMA_VERSION
 
 
+def test_initialize_migrates_schema_one_database(tmp_path: Path) -> None:
+    path = tmp_path / "schema-one.sqlite3"
+    with sqlite3.connect(path) as connection:
+        connection.executescript(_MIGRATION_1)
+        connection.execute(
+            "INSERT INTO schema_migrations(version, applied_at) VALUES (1, ?)",
+            ("2026-07-17T12:00:00+00:00",),
+        )
+    catalogue = Catalogue(path)
+    assert catalogue.schema_version() == 1
+    assert catalogue.initialize() == 2
+    with sqlite3.connect(path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(sources)")}
+    assert "resources_json" in columns
+
+
 def test_upsert_and_get(catalogue: Catalogue, source: SourceRecord) -> None:
-    stored = catalogue.upsert_source(source)
+    resource = ResourceReference(
+        resource_id="resource-1",
+        url="https://example.gov.uk/data.csv",
+        format="CSV",
+        licence="OGL-3.0",
+        provenance_url=source.provenance_url,
+    )
+    stored = catalogue.upsert_source(replace(source, resources=(resource,)))
     restored = catalogue.get_source(source.source_id)
     assert restored == stored
     assert restored is not None

@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 from ukei.discovery.base import DiscoveryCandidate, DiscoveryConnector, DiscoveryError
 from ukei.discovery.http import JsonHttpClient
-from ukei.models import SourceRecord, make_source_id, utc_now
+from ukei.models import ResourceReference, SourceRecord, make_source_id, utc_now
 
 
 class ArcGisConnector(DiscoveryConnector):
@@ -47,23 +48,41 @@ class ArcGisConnector(DiscoveryConnector):
             if not remote_id or not title:
                 continue
             canonical_url = f"https://www.arcgis.com/home/item.html?id={remote_id}"
-            owner = _text(item.get("owner")) or "Natural England ArcGIS publisher"
+            owner = _text(item.get("owner"))
             licence = _text(item.get("licenseInfo")) or (
                 "Not supplied by discovery response; verify the ArcGIS item before reuse"
             )
             raw_tags = item.get("tags")
             tags: list[object] = list(raw_tags) if isinstance(raw_tags, list) else []
+            resource_url = _text(item.get("url"))
+            resources = (
+                (
+                    ResourceReference(
+                        resource_id=remote_id,
+                        url=resource_url,
+                        name=title,
+                        format=_text(item.get("type")) or "ArcGIS item",
+                        licence=licence,
+                        last_modified=_arcgis_datetime(item.get("modified")),
+                        provenance_url=canonical_url,
+                        authoritative="authoritative" in _text(item.get("contentStatus")).lower(),
+                    ),
+                )
+                if resource_url.startswith(("http://", "https://"))
+                else ()
+            )
             source = SourceRecord(
                 source_id=make_source_id(remote_id, self.name),
                 title=title,
                 url=canonical_url,
-                publisher=owner,
+                publisher="Natural England" if owner == self.owner else owner or "Natural England",
                 description=_text(item.get("description")) or _text(item.get("snippet")),
                 licence=licence,
                 geographic_scope="England; verify item extent",
                 update_frequency="not supplied by discovery response",
                 formats=(_text(item.get("type")) or "ArcGIS item",),
                 themes=tuple(_text(tag) for tag in tags if _text(tag)),
+                resources=resources,
                 discovered_at=retrieved_at,
                 provenance_url=canonical_url,
                 connector=self.name,
@@ -76,3 +95,11 @@ class ArcGisConnector(DiscoveryConnector):
 
 def _text(value: object) -> str:
     return str(value).strip() if value is not None else ""
+
+
+def _arcgis_datetime(value: object) -> datetime | None:
+    try:
+        milliseconds = int(str(value))
+    except (TypeError, ValueError):
+        return None
+    return datetime.fromtimestamp(milliseconds / 1000, UTC)

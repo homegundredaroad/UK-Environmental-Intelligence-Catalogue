@@ -10,7 +10,7 @@ from ukei.models import SourceRecord, ValidationResult
 _UNKNOWN_PREFIXES = ("not supplied", "unknown", "verify")
 
 
-def _is_explicit(value: str) -> bool:
+def is_explicit_metadata(value: str) -> bool:
     normalized = value.strip().lower()
     return bool(normalized) and not normalized.startswith(_UNKNOWN_PREFIXES)
 
@@ -37,10 +37,10 @@ class MetadataValidator(Validator):
             "publisher": (bool(source.publisher.strip()), 10),
             "description": (bool(source.description.strip()), 10),
             "url": (parsed.scheme == "https" and bool(parsed.netloc), 15),
-            "licence": (_is_explicit(source.licence), 15),
+            "licence": (is_explicit_metadata(source.licence), 15),
             "provenance": (bool(source.provenance_url), 15),
-            "geographic_scope": (_is_explicit(source.geographic_scope), 10),
-            "update_frequency": (_is_explicit(source.update_frequency), 5),
+            "geographic_scope": (is_explicit_metadata(source.geographic_scope), 10),
+            "update_frequency": (is_explicit_metadata(source.update_frequency), 5),
             "formats": (bool(source.formats), 5),
             "themes": (bool(source.themes), 5),
         }
@@ -56,7 +56,7 @@ class MetadataValidator(Validator):
             ),
             (
                 "metadata.licence",
-                _is_explicit(source.licence),
+                is_explicit_metadata(source.licence),
                 "Licence metadata is explicit",
             ),
             (

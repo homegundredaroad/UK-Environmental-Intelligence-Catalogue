@@ -6,6 +6,11 @@ Every record has a stable identifier, title, canonical URL, publisher, descripti
 geographic scope, update frequency, formats, themes, lifecycle status, discovery and verification
 timestamps, provenance URL, connector name, canonical SHA-256 content hash and creation/update times.
 
+Schema 2 also stores zero or more resource references. A resource identifies an underlying file or
+machine service and may carry a name, format, media type, licence assertion, modification timestamp,
+authoritative flag and its own provenance URL. Resource fields participate in the source content
+hash and canonical JSON export.
+
 Lifecycle values are:
 
 - `candidate`: discovered or entered but not sufficiently corroborated;
@@ -26,3 +31,7 @@ do not prove data accuracy, currency, licensing suitability or fitness for a par
 A failed live URL check may move an active record to `degraded`. Passing checks preserve the current
 state: candidate records require a separate human-governed promotion policy before becoming
 `verified`, and retired records are never reactivated automatically.
+
+Resource checks are recorded separately as `resource.url`, `resource.licence` and
+`resource.recency`. Missing or stale descriptive evidence creates a review finding; only a material
+landing-page or resource reachability failure can automatically recommend degradation.

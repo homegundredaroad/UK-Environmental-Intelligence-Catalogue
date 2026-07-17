@@ -9,6 +9,7 @@ from typing import Any
 from ukei.models import SourceRecord, SourceStatus, ValidationResult, utc_now
 from ukei.validation.base import MetadataValidator
 from ukei.validation.live import UrlValidator
+from ukei.validation.resources import ResourceValidator
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,6 +21,7 @@ class SourceValidation:
     status_before: SourceStatus
     status_after: SourceStatus
     metadata_score: int
+    resource_count: int
     results: tuple[ValidationResult, ...]
 
     @property
@@ -30,6 +32,7 @@ class SourceValidation:
         return {
             "metadata_score": self.metadata_score,
             "passed": self.passed,
+            "resource_count": self.resource_count,
             "results": [result.to_dict() for result in self.results],
             "source_id": self.source_id,
             "status_after": self.status_after.value,
@@ -44,9 +47,10 @@ class ValidationReport:
 
     sources: tuple[SourceValidation, ...]
     live: bool
+    resources: bool
     started_at: datetime
     completed_at: datetime
-    report_version: int = 1
+    report_version: int = 2
 
     @property
     def all_passed(self) -> bool:
@@ -64,13 +68,17 @@ class ValidationReport:
             "live": self.live,
             "passed_count": sum(source.passed for source in self.sources),
             "report_version": self.report_version,
+            "resource_count": sum(source.resource_count for source in self.sources),
+            "resources": self.resources,
             "sources": [source.to_dict() for source in self.sources],
             "started_at": self.started_at.astimezone(UTC).isoformat(),
         }
 
 
 def run_validation(
-    sources: tuple[SourceRecord, ...], live_validator: UrlValidator | None = None
+    sources: tuple[SourceRecord, ...],
+    live_validator: UrlValidator | None = None,
+    resource_validator: ResourceValidator | None = None,
 ) -> ValidationReport:
     """Validate sources and recommend degradation only for failed live checks."""
     if not sources:
@@ -81,16 +89,18 @@ def run_validation(
     for source in sources:
         metadata_results = metadata_validator.validate(source)
         live_results = live_validator.validate(source) if live_validator else ()
-        results = (*metadata_results, *live_results)
+        resource_results = resource_validator.validate(source) if resource_validator else ()
+        results = (*metadata_results, *live_results, *resource_results)
         score_result = next(
             result for result in metadata_results if result.check_name == "metadata.completeness"
         )
         score = int(score_result.details["score"])
-        live_failed = any(
-            result.check_name == "live.url" and not result.passed for result in live_results
+        material_failed = any(
+            result.check_name in {"live.url", "resource.url"} and not result.passed
+            for result in (*live_results, *resource_results)
         )
         status_after = source.status
-        if live_failed and source.status is not SourceStatus.RETIRED:
+        if material_failed and source.status is not SourceStatus.RETIRED:
             status_after = SourceStatus.DEGRADED
         assessments.append(
             SourceValidation(
@@ -99,12 +109,14 @@ def run_validation(
                 status_before=source.status,
                 status_after=status_after,
                 metadata_score=score,
+                resource_count=len(source.resources),
                 results=results,
             )
         )
     return ValidationReport(
         sources=tuple(assessments),
         live=live_validator is not None,
+        resources=resource_validator is not None,
         started_at=started_at,
         completed_at=utc_now(),
     )

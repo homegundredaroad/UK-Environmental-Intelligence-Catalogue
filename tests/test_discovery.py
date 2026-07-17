@@ -42,7 +42,17 @@ def ckan_payload() -> dict[str, object]:
                     "notes": "Fixture metadata",
                     "license_title": "Open Government Licence",
                     "organization": {"title": "Defra"},
-                    "resources": [{"format": "CSV"}, {"format": "JSON"}],
+                    "metadata_modified": "2026-07-01T12:00:00+00:00",
+                    "resources": [
+                        {
+                            "id": "csv-1",
+                            "url": "https://example.gov.uk/air.csv",
+                            "name": "Readings",
+                            "format": "CSV",
+                            "mimetype": "text/csv",
+                        },
+                        {"format": "JSON"},
+                    ],
                     "tags": [{"name": "air-quality"}],
                 }
             ]
@@ -57,8 +67,11 @@ def arcgis_payload() -> dict[str, object]:
             {
                 "id": "abc123",
                 "title": "Protected habitat fixture",
-                "owner": "NaturalEngland",
+                "owner": "Opendata_NE",
                 "type": "Feature Service",
+                "url": "https://services.arcgis.com/example/FeatureServer",
+                "modified": 1782907200000,
+                "contentStatus": "public_authoritative",
                 "snippet": "Fixture metadata",
                 "licenseInfo": "Open Government Licence",
                 "tags": ["habitat", "protected sites"],
@@ -76,6 +89,9 @@ def test_ckan_connector_parses_candidates() -> None:
     assert candidate.provider == "ckan:data.gov.uk"
     assert candidate.source.status is SourceStatus.CANDIDATE
     assert candidate.source.formats == ("CSV", "JSON")
+    assert len(candidate.source.resources) == 1
+    assert candidate.source.resources[0].media_type == "text/csv"
+    assert candidate.source.resources[0].last_modified is not None
     assert len(candidate.metadata_hash) == 64
     assert client.calls[0][1] == {"q": "air", "rows": 5}
 
@@ -99,8 +115,10 @@ def test_arcgis_connector_parses_candidates() -> None:
     connector = ArcGisConnector(client=client)  # type: ignore[arg-type]
     candidates = connector.discover("habitat", 10)
     assert len(candidates) == 1
-    assert candidates[0].source.publisher == "NaturalEngland"
+    assert candidates[0].source.publisher == "Natural England"
     assert candidates[0].source.formats == ("Feature Service",)
+    assert candidates[0].source.resources[0].authoritative
+    assert candidates[0].source.resources[0].url.endswith("/FeatureServer")
     assert client.calls[0][1]["q"] == "(habitat) AND owner:Opendata_NE"
 
 

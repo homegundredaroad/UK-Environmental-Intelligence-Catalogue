@@ -3,6 +3,20 @@
 All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and semantic
 versioning.
 
+## [0.5.0] - 2026-07-17
+
+### Added
+
+- Schema-2 resource references for downloadable files and machine services.
+- CKAN and ArcGIS resource extraction with provenance, licence and modification evidence.
+- Bounded resource reachability, licence and recency checks.
+- Opt-in resource-validation workflow with a canonical catalogue snapshot artifact.
+
+### Changed
+
+- Natural England ArcGIS account ownership is normalized to the publisher `Natural England`.
+- Failed underlying-resource reachability checks may conservatively degrade active records.
+
 ## [0.4.0] - 2026-07-17
 
 ### Added

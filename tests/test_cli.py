@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import io
 import json
+from datetime import UTC, datetime
 from email.message import Message
 from pathlib import Path
 from urllib.error import URLError
 
 import pytest
 
+from ukei.catalogue import Catalogue
 from ukei.cli import run
+from ukei.models import ResourceReference, SourceRecord
 
 
 class LiveResponse(io.BytesIO):
@@ -37,7 +40,7 @@ def test_init_and_status(database: Path, capsys: pytest.CaptureFixture[str]) -> 
     assert run(["--database", str(database), "init"]) == 0
     assert run(["--database", str(database), "status"]) == 0
     output = capsys.readouterr().out
-    assert "schema 1" in output
+    assert "schema 2" in output
     assert "Integrity: PASS" in output
 
 
@@ -245,3 +248,56 @@ def test_live_failure_degrades_and_report_only_returns_success(
 def test_validate_rejects_nonpositive_limit(database: Path) -> None:
     assert run(["--database", str(database), "demo"]) == 0
     assert run(["--database", str(database), "validate", "--limit", "0"]) == 2
+    assert run(["--database", str(database), "validate", "--resource-limit", "0"]) == 2
+
+
+def test_resource_validation_cli_writes_schema_two_report(
+    database: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    timestamp = datetime(2026, 7, 1, tzinfo=UTC)
+    resource = ResourceReference(
+        resource_id="csv-1",
+        url="https://example.org/data.csv",
+        name="Data",
+        format="CSV",
+        licence="OGL-3.0",
+        last_modified=timestamp,
+        provenance_url="https://example.org/metadata",
+    )
+    Catalogue(database).upsert_source(
+        SourceRecord(
+            source_id="resource-cli-source",
+            title="Resource CLI source",
+            url="https://example.org/catalogue",
+            publisher="Example",
+            description="CLI fixture",
+            licence="OGL-3.0",
+            update_frequency="monthly",
+            formats=("CSV",),
+            themes=("environment",),
+            resources=(resource,),
+            provenance_url="https://example.org/metadata",
+        )
+    )
+    monkeypatch.setattr("ukei.validation.live.urlopen", lambda *_args, **_kwargs: LiveResponse())
+    output = tmp_path / "resource-report.json"
+    assert (
+        run(
+            [
+                "--database",
+                str(database),
+                "validate",
+                "--resources",
+                "--report-only",
+                "--output",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["report_version"] == 2
+    assert report["resource_count"] == 1
+    assert report["resources"] is True

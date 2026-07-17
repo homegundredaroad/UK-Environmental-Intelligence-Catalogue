@@ -68,7 +68,7 @@ class DiscoveryReport:
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "report_version": 1,
+            "report_version": 2,
             "query": self.query,
             "started_at": self.started_at.astimezone(UTC).isoformat(),
             "completed_at": self.completed_at.astimezone(UTC).isoformat(),

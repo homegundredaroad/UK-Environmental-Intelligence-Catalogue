@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from typing import Any
 
 from ukei.discovery.base import DiscoveryCandidate, DiscoveryConnector, DiscoveryError
 from ukei.discovery.http import JsonHttpClient
-from ukei.models import SourceRecord, make_source_id, utc_now
+from ukei.models import ResourceReference, SourceRecord, make_source_id, utc_now
 
 
 class CkanConnector(DiscoveryConnector):
@@ -54,6 +55,7 @@ class CkanConnector(DiscoveryConnector):
             licence = _text(item.get("license_title")) or (
                 "Not supplied by discovery response; verify the dataset record before reuse"
             )
+            resources = _resources(item, canonical_url, licence)
             formats = sorted(
                 {
                     value
@@ -81,6 +83,7 @@ class CkanConnector(DiscoveryConnector):
                 update_frequency="not supplied by discovery response",
                 formats=tuple(formats),
                 themes=tuple(themes),
+                resources=resources,
                 discovered_at=retrieved_at,
                 provenance_url=canonical_url,
                 connector=self.name,
@@ -93,3 +96,43 @@ class CkanConnector(DiscoveryConnector):
 
 def _text(value: object) -> str:
     return str(value).strip() if value is not None else ""
+
+
+def _resources(
+    item: Mapping[object, object], provenance_url: str, licence: str
+) -> tuple[ResourceReference, ...]:
+    raw_resources = item.get("resources")
+    if not isinstance(raw_resources, list):
+        return ()
+    package_modified = _optional_datetime(item.get("metadata_modified"))
+    resources: list[ResourceReference] = []
+    for raw in raw_resources:
+        if not isinstance(raw, Mapping):
+            continue
+        url = _text(raw.get("url"))
+        if not url.startswith(("http://", "https://")):
+            continue
+        resource_id = _text(raw.get("id")) or make_source_id(url, "ckan-resource")
+        resources.append(
+            ResourceReference(
+                resource_id=resource_id,
+                url=url,
+                name=_text(raw.get("name")) or _text(raw.get("description")),
+                format=_text(raw.get("format")),
+                media_type=_text(raw.get("mimetype")),
+                licence=licence,
+                last_modified=_optional_datetime(raw.get("last_modified")) or package_modified,
+                provenance_url=provenance_url,
+            )
+        )
+    return tuple(resources)
+
+
+def _optional_datetime(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=UTC) if parsed.tzinfo is None else parsed.astimezone(UTC)
