@@ -230,7 +230,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.run_comprehensive_scan
     needs: quality
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 360
     permissions:
       contents: read
     env:
@@ -263,12 +263,29 @@ jobs:
             ukei --database "${RUNNER_TEMP}/comprehensive.sqlite3" discover \
               --provider all \
               --query "${query}" \
-              --limit 100 \
+              --limit 250 \
               --output "comprehensive-output/discovery/${query}.json" \
               --import-candidates
           done
+          jq -s '{
+            report_version: 1,
+            query_reports: map({
+              query,
+              candidate_count,
+              provider_counts,
+              provider_coverage,
+              duplicates_removed,
+              errors
+            }),
+            query_count: length,
+            total_query_candidates: (map(.candidate_count) | add),
+            provider_errors: (map(.errors | length) | add)
+          }' comprehensive-output/discovery/*.json \
+            > comprehensive-output/coverage-ledger.json
           ukei --database "${RUNNER_TEMP}/comprehensive.sqlite3" export \
             comprehensive-output/discovered-catalogue.json
+          cp "${RUNNER_TEMP}/comprehensive.sqlite3" \
+            comprehensive-output/discovered-catalogue.sqlite3
           ukei --database "${RUNNER_TEMP}/comprehensive.sqlite3" status \
             > comprehensive-output/pre-validation-status.txt
 
@@ -277,11 +294,13 @@ jobs:
           ukei --database "${RUNNER_TEMP}/comprehensive.sqlite3" validate \
             --live \
             --resources \
-            --resource-limit 10 \
+            --resource-limit 1000 \
             --report-only \
             --output comprehensive-output/comprehensive-validation-report.json
           ukei --database "${RUNNER_TEMP}/comprehensive.sqlite3" export \
             comprehensive-output/validated-catalogue.json
+          cp "${RUNNER_TEMP}/comprehensive.sqlite3" \
+            comprehensive-output/validated-catalogue.sqlite3
           ukei --database "${RUNNER_TEMP}/comprehensive.sqlite3" status \
             > comprehensive-output/final-status.txt
 
@@ -291,4 +310,4 @@ jobs:
           name: ukei-comprehensive-report
           path: comprehensive-output/
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 90
