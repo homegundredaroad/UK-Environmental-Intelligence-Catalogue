@@ -108,12 +108,13 @@ def _url_failure(
     details: dict[str, object],
 ) -> ValidationResult:
     elapsed_ms = round((monotonic() - started) * 1000)
+    outcome = _failure_outcome(reason, status_code)
     details.update(
         {
             "elapsed_ms": elapsed_ms,
             "status_code": status_code,
             "failure_reason": reason,
-            "outcome": "unreachable",
+            "outcome": outcome,
         }
     )
     return ValidationResult(
@@ -123,6 +124,27 @@ def _url_failure(
         message=f"FAILED: URL check failed: {reason}",
         details=details,
     )
+
+
+def _failure_outcome(reason: str, status_code: int | None) -> str:
+    if status_code in {404, 410}:
+        return "confirmed_missing"
+    if status_code == 401:
+        return "authentication_required"
+    if status_code == 403:
+        return "access_restricted"
+    if status_code == 429:
+        return "rate_limited"
+    if status_code is not None and 500 <= status_code <= 599:
+        return "transient_server_failure"
+    lowered = reason.casefold()
+    if "timed out" in lowered or "timeout" in lowered or "reset" in lowered:
+        return "transient_network_failure"
+    if "certificate" in lowered or "ssl" in lowered:
+        return "tls_failure"
+    if status_code is not None:
+        return "request_rejected"
+    return "network_failure"
 
 
 def _public_https_error(url: str) -> str | None:

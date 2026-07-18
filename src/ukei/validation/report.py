@@ -112,10 +112,11 @@ def run_validation(
             result for result in metadata_results if result.check_name == "metadata.completeness"
         )
         score = int(score_result.details["score"])
+        material_outcomes = {"confirmed_missing", "semantic_failure"}
         material_failed = any(
             result.check_name in {"live.url", "resource.url", "resource.service"}
             and not result.passed
-            and result.details.get("outcome") != "blocked_by_policy"
+            and result.details.get("outcome") in material_outcomes
             for result in (*live_results, *resource_results)
         )
         status_after = source.status

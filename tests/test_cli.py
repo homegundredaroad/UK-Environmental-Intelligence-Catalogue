@@ -210,7 +210,7 @@ def test_live_validation_writes_report_without_promoting(
     assert all(source["status_after"] == "candidate" for source in report["sources"])
 
 
-def test_live_failure_degrades_and_report_only_returns_success(
+def test_transient_live_failure_is_retained_for_review_without_degradation(
     database: Path,
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -240,7 +240,7 @@ def test_live_failure_degrades_and_report_only_returns_success(
         == 0
     )
     capsys.readouterr()
-    assert run([*base, "list", "--format", "json", "--status", "degraded"]) == 0
+    assert run([*base, "list", "--format", "json", "--status", "candidate"]) == 0
     records = json.loads(capsys.readouterr().out)
     assert [record["source_id"] for record in records] == [source_id]
 

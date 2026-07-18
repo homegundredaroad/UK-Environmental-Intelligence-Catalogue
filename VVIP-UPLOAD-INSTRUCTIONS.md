@@ -14,11 +14,11 @@ Choose **Commit changes** once, after all files have been added or replaced.
 1. Open **Actions** and select **CI**.
 2. Select **Run workflow**.
 3. Enable only **Run the broad multi-theme discovery and validation scan (VVIP)**.
-4. Select **Run workflow** and allow up to three hours.
+4. Select **Run workflow** and allow up to six hours.
 5. When the run is green, open it and download **ukei-comprehensive-report**.
 
-The artifact contains per-theme discovery evidence, the deduplicated catalogue before validation,
-the comprehensive validation report, the catalogue after validation, and integrity status files.
+The artifact contains per-theme paginated discovery evidence, a coverage ledger, JSON and SQLite
+catalogues before and after validation, the comprehensive validation report, and integrity status.
 
 ## Important scope statement
 

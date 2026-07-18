@@ -53,6 +53,10 @@ class DiscoveryConnector(ABC):
     def discover(self, query: str, limit: int) -> tuple[DiscoveryCandidate, ...]:
         """Return bounded candidate observations or raise DiscoveryError."""
 
+    def coverage(self) -> dict[str, Any]:
+        """Return provider pagination evidence from the most recent discovery call."""
+        return {}
+
 
 @dataclass(frozen=True, slots=True)
 class DiscoveryReport:
@@ -63,17 +67,19 @@ class DiscoveryReport:
     completed_at: datetime
     candidates: tuple[DiscoveryCandidate, ...]
     provider_counts: dict[str, int]
+    provider_coverage: dict[str, dict[str, Any]]
     duplicates_removed: int
     errors: tuple[str, ...] = field(default_factory=tuple)
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            "report_version": 2,
+            "report_version": 3,
             "query": self.query,
             "started_at": self.started_at.astimezone(UTC).isoformat(),
             "completed_at": self.completed_at.astimezone(UTC).isoformat(),
             "candidate_count": len(self.candidates),
             "provider_counts": dict(sorted(self.provider_counts.items())),
+            "provider_coverage": dict(sorted(self.provider_coverage.items())),
             "duplicates_removed": self.duplicates_removed,
             "errors": list(self.errors),
             "candidates": [candidate.to_dict() for candidate in self.candidates],
@@ -93,14 +99,15 @@ def run_discovery(
     """Run providers independently and deterministically remove duplicate URLs."""
     if not query.strip():
         raise DiscoveryError("discovery query must not be empty")
-    if limit < 1 or limit > 100:
-        raise DiscoveryError("discovery limit must be between 1 and 100")
+    if limit < 1 or limit > 1_000:
+        raise DiscoveryError("discovery limit must be between 1 and 1,000")
     if not connectors:
         raise DiscoveryError("at least one discovery connector is required")
 
     started = utc_now()
     observations: list[DiscoveryCandidate] = []
     counts: dict[str, int] = {}
+    coverage: dict[str, dict[str, Any]] = {}
     errors: list[str] = []
     for connector in connectors:
         try:
@@ -108,8 +115,10 @@ def run_discovery(
         except DiscoveryError as exc:
             errors.append(f"{connector.name}: {exc}")
             counts[connector.name] = 0
+            coverage[connector.name] = connector.coverage()
             continue
         counts[connector.name] = len(discovered)
+        coverage[connector.name] = connector.coverage()
         observations.extend(discovered)
 
     unique: list[DiscoveryCandidate] = []
@@ -129,6 +138,7 @@ def run_discovery(
         completed_at=utc_now(),
         candidates=tuple(unique),
         provider_counts=counts,
+        provider_coverage=coverage,
         duplicates_removed=len(observations) - len(unique),
         errors=tuple(errors),
     )

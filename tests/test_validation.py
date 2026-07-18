@@ -10,6 +10,8 @@ import pytest
 
 from ukei.models import ResourceReference, SourceRecord, SourceStatus
 from ukei.validation import MetadataValidator, ResourceValidator, UrlValidator, run_validation
+from ukei.validation.live import _failure_outcome
+from ukei.validation.resources import _service_failure_outcome
 
 
 class FakeResponse(io.BytesIO):
@@ -148,7 +150,7 @@ def test_validation_report_never_promotes_candidate(
     assert report.to_dict()["passed_count"] == 1
 
 
-def test_failed_live_check_degrades_active_but_not_retired(
+def test_transient_live_failure_does_not_degrade_active_or_retired(
     source: SourceRecord, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def offline(*_args: object, **_kwargs: object) -> None:
@@ -159,9 +161,9 @@ def test_failed_live_check_degrades_active_but_not_retired(
         (source, replace(source, source_id="retired-source", status=SourceStatus.RETIRED)),
         UrlValidator(),
     )
-    assert report.sources[0].status_after is SourceStatus.DEGRADED
+    assert report.sources[0].status_after is SourceStatus.CANDIDATE
     assert report.sources[1].status_after is SourceStatus.RETIRED
-    assert report.to_dict()["degraded_count"] == 1
+    assert report.to_dict()["degraded_count"] == 0
 
 
 def test_resource_validator_records_url_licence_and_recency(
@@ -211,7 +213,7 @@ def test_resource_validator_flags_absence_and_staleness(source: SourceRecord) ->
     assert recency.details["outcome"] == "stale_warning"
 
 
-def test_failed_resource_url_degrades_candidate(
+def test_transient_resource_failure_does_not_degrade_candidate(
     source: SourceRecord, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     resource = ResourceReference(
@@ -228,6 +230,26 @@ def test_failed_resource_url_degrades_candidate(
     report = run_validation(
         (replace(source, resources=(resource,)),),
         resource_validator=ResourceValidator(),
+    )
+    assert report.sources[0].status_after is SourceStatus.CANDIDATE
+
+
+def test_confirmed_missing_resource_degrades_candidate(
+    source: SourceRecord, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resource = ResourceReference(
+        resource_id="missing-resource",
+        url="https://example.gov.uk/missing.csv",
+        licence="OGL-3.0",
+        last_modified=datetime(2026, 7, 1, tzinfo=UTC),
+    )
+
+    def missing(*_args: object, **_kwargs: object) -> None:
+        raise HTTPError(resource.url, 404, "Not Found", Message(), None)
+
+    monkeypatch.setattr("ukei.validation.live.urlopen", missing)
+    report = run_validation(
+        (replace(source, resources=(resource,)),), resource_validator=ResourceValidator()
     )
     assert report.sources[0].status_after is SourceStatus.DEGRADED
 
@@ -279,6 +301,32 @@ def test_arcgis_service_metadata_is_semantically_checked(
     assert service.details["layer_count"] == 1
 
 
+def test_arcgis_layer_endpoint_is_not_mistaken_for_service_root(
+    source: SourceRecord, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    resource = ResourceReference(
+        resource_id="feature-layer",
+        url="https://services.arcgis.com/example/FeatureServer/0",
+        format="Feature Service",
+        licence="OGL-3.0",
+    )
+    monkeypatch.setattr("ukei.validation.live.urlopen", lambda *_args, **_kwargs: FakeResponse())
+    monkeypatch.setattr(
+        "ukei.validation.resources.urlopen",
+        lambda *_args, **_kwargs: FakeResponse(
+            b'{"id": 0, "name": "Habitats", "fields": [{"name": "OBJECTID"}]}'
+        ),
+    )
+    report = run_validation(
+        (replace(source, resources=(resource,)),), resource_validator=ResourceValidator()
+    )
+    service = next(
+        result for result in report.sources[0].results if result.check_name == "resource.service"
+    )
+    assert service.passed
+    assert service.details["service_kind"] == "layer"
+
+
 def test_validation_rejects_empty_batch_and_timeout() -> None:
     with pytest.raises(ValueError, match="at least one"):
         run_validation(())
@@ -286,3 +334,38 @@ def test_validation_rejects_empty_batch_and_timeout() -> None:
         UrlValidator(0)
     with pytest.raises(ValueError, match="greater than zero"):
         ResourceValidator(max_resources_per_source=0)
+
+
+@pytest.mark.parametrize(
+    ("reason", "status", "outcome"),
+    [
+        ("gone", 410, "confirmed_missing"),
+        ("auth", 401, "authentication_required"),
+        ("forbidden", 403, "access_restricted"),
+        ("busy", 429, "rate_limited"),
+        ("bad gateway", 502, "transient_server_failure"),
+        ("timed out", None, "transient_network_failure"),
+        ("certificate verify failed", None, "tls_failure"),
+        ("bad request", 400, "request_rejected"),
+        ("offline", None, "network_failure"),
+    ],
+)
+def test_live_failure_outcomes(reason: str, status: int | None, outcome: str) -> None:
+    assert _failure_outcome(reason, status) == outcome
+
+
+@pytest.mark.parametrize(
+    ("exception", "outcome"),
+    [
+        (HTTPError("https://x", 404, "missing", Message(), None), "confirmed_missing"),
+        (HTTPError("https://x", 429, "busy", Message(), None), "rate_limited"),
+        (HTTPError("https://x", 403, "forbidden", Message(), None), "access_restricted"),
+        (HTTPError("https://x", 503, "down", Message(), None), "transient_server_failure"),
+        (HTTPError("https://x", 400, "bad", Message(), None), "request_rejected"),
+        (URLError("timed out"), "transient_network_failure"),
+        (URLError("certificate verify failed"), "tls_failure"),
+        (ValueError("invalid"), "service_error"),
+    ],
+)
+def test_service_failure_outcomes(exception: Exception, outcome: str) -> None:
+    assert _service_failure_outcome(exception) == outcome

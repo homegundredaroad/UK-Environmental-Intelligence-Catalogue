@@ -30,6 +30,16 @@ class FakeClient:
         return self.payload
 
 
+class SequenceClient:
+    def __init__(self, payloads: list[Any]) -> None:
+        self.payloads = iter(payloads)
+        self.calls: list[tuple[str, dict[str, str | int]]] = []
+
+    def get_json(self, url: str, parameters: dict[str, str | int]) -> Any:
+        self.calls.append((url, parameters))
+        return next(self.payloads)
+
+
 def ckan_payload() -> dict[str, object]:
     return {
         "success": True,
@@ -93,7 +103,7 @@ def test_ckan_connector_parses_candidates() -> None:
     assert candidate.source.resources[0].media_type == "text/csv"
     assert candidate.source.resources[0].last_modified is not None
     assert len(candidate.metadata_hash) == 64
-    assert client.calls[0][1] == {"q": "air", "rows": 5}
+    assert client.calls[0][1] == {"q": "air", "rows": 5, "start": 0}
 
 
 @pytest.mark.parametrize(
@@ -139,6 +149,54 @@ def test_arcgis_connector_parses_candidates() -> None:
     assert candidates[0].source.resources[0].authoritative
     assert candidates[0].source.resources[0].url.endswith("/FeatureServer")
     assert client.calls[0][1]["q"] == "(habitat) AND owner:Opendata_NE"
+    assert client.calls[0][1]["start"] == 1
+
+
+def test_discovery_report_contains_provider_coverage(source: SourceRecord) -> None:
+    report = run_discovery((StaticConnector("fixture", (_candidate(source),)),), "air", 5)
+    assert report.to_dict()["report_version"] == 3
+    assert report.to_dict()["provider_coverage"] == {"fixture": {}}
+
+
+def test_ckan_paginates_and_records_complete_coverage() -> None:
+    def item(index: int) -> dict[str, object]:
+        return {
+            "id": f"dataset-{index}",
+            "name": f"dataset-{index}",
+            "title": f"Dataset {index}",
+            "resources": [],
+        }
+
+    client = SequenceClient(
+        [
+            {"success": True, "result": {"count": 101, "results": [item(i) for i in range(100)]}},
+            {"success": True, "result": {"count": 101, "results": [item(100)]}},
+        ]
+    )
+    connector = CkanConnector(client=client)  # type: ignore[arg-type]
+    assert len(connector.discover("water", 101)) == 101
+    assert connector.coverage()["complete"] is True
+    assert connector.coverage()["pages_fetched"] == 2
+    assert client.calls[1][1]["start"] == 100
+
+
+def test_arcgis_paginates_and_records_truncation() -> None:
+    first = arcgis_payload()
+    second = arcgis_payload()
+    first["total"] = 300
+    first["nextStart"] = 101
+    second["total"] = 300
+    second["nextStart"] = 201
+    first_result = first["results"]
+    second_result = second["results"]
+    assert isinstance(first_result, list) and isinstance(second_result, list)
+    first_result[0] = {**first_result[0], "id": "first"}
+    second_result[0] = {**second_result[0], "id": "second"}
+    client = SequenceClient([first, second])
+    connector = ArcGisConnector(client=client)  # type: ignore[arg-type]
+    assert len(connector.discover("habitat", 2)) == 2
+    assert connector.coverage()["truncated_by_limit"] is True
+    assert connector.coverage()["next_start"] == 201
 
 
 @pytest.mark.parametrize("payload", [{}, {"results": [], "error": {"code": 400}}])

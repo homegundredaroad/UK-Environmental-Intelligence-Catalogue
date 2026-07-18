@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ukei-catalogue"
-version = "0.6.0"
+version = "0.7.0"
 description = "A verifiable catalogue framework for UK environmental data sources."
 readme = "README.md"
 requires-python = ">=3.11"

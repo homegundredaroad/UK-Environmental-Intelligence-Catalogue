@@ -24,10 +24,50 @@ class CkanConnector(DiscoveryConnector):
     ) -> None:
         self.client = client or JsonHttpClient()
         self.endpoint = endpoint
+        self._coverage: dict[str, Any] = {}
 
     def discover(self, query: str, limit: int) -> tuple[DiscoveryCandidate, ...]:
-        payload = self.client.get_json(self.endpoint, {"q": query, "rows": limit})
-        return self.parse_response(payload)
+        candidates: list[DiscoveryCandidate] = []
+        start = 0
+        pages = 0
+        provider_total: int | None = None
+        exhausted = False
+        records_received = 0
+        while len(candidates) < limit:
+            rows = min(100, limit - len(candidates))
+            payload = self.client.get_json(
+                self.endpoint, {"q": query, "rows": rows, "start": start}
+            )
+            pages += 1
+            result = payload.get("result") if isinstance(payload, Mapping) else None
+            if isinstance(result, Mapping):
+                try:
+                    provider_total = int(str(result.get("count")))
+                except (TypeError, ValueError):
+                    provider_total = None
+            raw_results = result.get("results") if isinstance(result, Mapping) else None
+            received = len(raw_results) if isinstance(raw_results, list) else 0
+            records_received += received
+            page = self.parse_response(payload)
+            candidates.extend(page)
+            start += rows
+            exhausted = received < rows
+            if exhausted or (provider_total is not None and start >= provider_total):
+                break
+        self._coverage = {
+            "complete": exhausted or (provider_total is not None and start >= provider_total),
+            "limit": limit,
+            "pages_fetched": pages,
+            "provider_total": provider_total,
+            "records_returned": len(candidates[:limit]),
+            "records_received": records_received,
+            "truncated_by_limit": not exhausted
+            and (provider_total is None or len(candidates) < provider_total),
+        }
+        return tuple(candidates[:limit])
+
+    def coverage(self) -> dict[str, Any]:
+        return dict(self._coverage)
 
     def parse_response(self, payload: Any) -> tuple[DiscoveryCandidate, ...]:
         if not isinstance(payload, Mapping) or payload.get("success") is not True:

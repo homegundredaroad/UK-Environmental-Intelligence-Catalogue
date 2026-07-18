@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -139,19 +140,34 @@ class ResourceValidator:
                 raise ValueError("ArcGIS returned an error or invalid service document")
             layers = payload.get("layers", [])
             tables = payload.get("tables", [])
-            valid = isinstance(layers, list) and isinstance(tables, list) and bool(layers or tables)
+            is_layer = bool(re.search(r"/(?:FeatureServer|MapServer)/\d+/?$", parsed.path, re.I))
+            if is_layer:
+                fields = payload.get("fields")
+                valid = (
+                    isinstance(payload.get("id"), int)
+                    and bool(str(payload.get("name", "")).strip())
+                    and isinstance(fields, list)
+                )
+                service_kind = "layer"
+            else:
+                valid = (
+                    isinstance(layers, list) and isinstance(tables, list) and bool(layers or tables)
+                )
+                service_kind = "root"
             details.update(
                 {
                     "capabilities": payload.get("capabilities", ""),
                     "current_version": payload.get("currentVersion"),
                     "layer_count": len(layers) if isinstance(layers, list) else None,
                     "table_count": len(tables) if isinstance(tables, list) else None,
+                    "service_kind": service_kind,
+                    "outcome": "semantically_valid" if valid else "semantic_failure",
                 }
             )
             message = (
-                "ArcGIS service metadata is valid"
+                f"ArcGIS {service_kind} metadata is valid"
                 if valid
-                else "FAILED: ArcGIS service contains no layers or tables"
+                else f"FAILED: ArcGIS {service_kind} metadata is incomplete"
             )
             return ValidationResult(
                 source_id=source.source_id,
@@ -162,6 +178,7 @@ class ResourceValidator:
             )
         except (HTTPError, URLError, OSError, ValueError, json.JSONDecodeError) as exc:
             details["failure_reason"] = str(exc)
+            details["outcome"] = _service_failure_outcome(exc)
             return ValidationResult(
                 source_id=source.source_id,
                 check_name="resource.service",
@@ -172,5 +189,27 @@ class ResourceValidator:
 
 
 def _is_arcgis_service(url: str, format_name: str) -> bool:
-    lowered = f"{url} {format_name}".casefold()
-    return "featureserver" in lowered or "mapserver" in lowered or "feature service" in lowered
+    del format_name
+    lowered = url.casefold()
+    return "/featureserver" in lowered or "/mapserver" in lowered
+
+
+def _service_failure_outcome(exc: Exception) -> str:
+    if isinstance(exc, HTTPError):
+        if exc.code in {404, 410}:
+            return "confirmed_missing"
+        if exc.code == 429:
+            return "rate_limited"
+        if exc.code in {401, 403}:
+            return "access_restricted"
+        if exc.code >= 500:
+            return "transient_server_failure"
+        return "request_rejected"
+    lowered = str(exc).casefold()
+    if "timed out" in lowered or "timeout" in lowered or "reset" in lowered:
+        return "transient_network_failure"
+    if "certificate" in lowered or "ssl" in lowered:
+        return "tls_failure"
+    if isinstance(exc, json.JSONDecodeError):
+        return "non_json_response"
+    return "service_error"

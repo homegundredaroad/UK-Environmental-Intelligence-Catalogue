@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+- Add auditable CKAN and ArcGIS pagination up to 1,000 results per provider/query.
+- Add provider totals, pages, completion and truncation evidence to discovery reports.
+- Correct ArcGIS layer endpoint validation separately from service-root validation.
+- Classify rate limits, access restrictions, TLS faults and transient network failures.
+- Restrict automatic degradation to confirmed missing or semantic failures.
+- Expand the comprehensive scan to 250 paginated records per provider/query.
+- Validate every discovered resource reference and retain SQLite library snapshots.
+- Add a combined query and provider coverage ledger with 90-day artifact retention.
+
 ## 0.6.0
 
 - Add strict malformed and HTML-contaminated URL rejection.

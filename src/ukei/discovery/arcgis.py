@@ -25,13 +25,63 @@ class ArcGisConnector(DiscoveryConnector):
     ) -> None:
         self.client = client or JsonHttpClient()
         self.endpoint = endpoint
+        self._coverage: dict[str, Any] = {}
 
     def discover(self, query: str, limit: int) -> tuple[DiscoveryCandidate, ...]:
         scoped_query = f"({query}) AND owner:{self.owner}"
-        payload = self.client.get_json(
-            self.endpoint, {"q": scoped_query, "num": limit, "f": "json", "sortField": "modified"}
-        )
-        return self.parse_response(payload)
+        candidates: list[DiscoveryCandidate] = []
+        start = 1
+        pages = 0
+        provider_total: int | None = None
+        next_start = start
+        records_received = 0
+        while len(candidates) < limit and next_start != -1:
+            page_size = min(100, limit - len(candidates))
+            payload = self.client.get_json(
+                self.endpoint,
+                {
+                    "q": scoped_query,
+                    "num": page_size,
+                    "start": next_start,
+                    "f": "json",
+                    "sortField": "modified",
+                },
+            )
+            pages += 1
+            if isinstance(payload, Mapping):
+                try:
+                    provider_total = int(str(payload.get("total")))
+                except (TypeError, ValueError):
+                    provider_total = None
+                try:
+                    next_start = int(str(payload.get("nextStart", -1)))
+                except (TypeError, ValueError):
+                    next_start = -1
+            else:
+                next_start = -1
+            raw_results = payload.get("results") if isinstance(payload, Mapping) else None
+            received = len(raw_results) if isinstance(raw_results, list) else 0
+            records_received += received
+            page = self.parse_response(payload)
+            candidates.extend(page)
+            if received == 0:
+                break
+        returned = len(candidates[:limit])
+        self._coverage = {
+            "complete": next_start == -1 and (provider_total is None or returned >= provider_total),
+            "limit": limit,
+            "next_start": next_start,
+            "pages_fetched": pages,
+            "provider_total": provider_total,
+            "records_returned": returned,
+            "records_received": records_received,
+            "truncated_by_limit": next_start != -1
+            or (provider_total is not None and returned < provider_total),
+        }
+        return tuple(candidates[:limit])
+
+    def coverage(self) -> dict[str, Any]:
+        return dict(self._coverage)
 
     def parse_response(self, payload: Any) -> tuple[DiscoveryCandidate, ...]:
         if not isinstance(payload, Mapping) or not isinstance(payload.get("results"), list):
