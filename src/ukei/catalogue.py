@@ -181,6 +181,13 @@ class Catalogue:
             ).fetchone()
         return self._row_to_source(row) if row else None
 
+    def get_source_by_url(self, url: str) -> SourceRecord | None:
+        """Return the canonical record for an exact normalized source URL."""
+        self.initialize()
+        with self.connect() as connection:
+            row = connection.execute("SELECT * FROM sources WHERE url = ?", (url,)).fetchone()
+        return self._row_to_source(row) if row else None
+
     def list_sources(self, *, status: SourceStatus | None = None) -> list[SourceRecord]:
         self.initialize()
         query = "SELECT * FROM sources"
@@ -282,6 +289,29 @@ class Catalogue:
             claimed_hash = source.content_hash
             if claimed_hash and claimed_hash != source.calculate_hash():
                 raise CatalogueError(f"content hash mismatch for {source.source_id}")
+            existing = self.get_source_by_url(source.url)
+            if existing is not None and existing.source_id != source.source_id:
+                resources = {resource.resource_id: resource for resource in existing.resources}
+                resources.update({resource.resource_id: resource for resource in source.resources})
+                source = replace(
+                    source,
+                    source_id=existing.source_id,
+                    description=max(
+                        (existing.description, source.description), key=lambda value: len(value)
+                    ),
+                    licence=(
+                        existing.licence
+                        if source.licence.strip().casefold() in {"", "unknown"}
+                        else source.licence
+                    ),
+                    formats=tuple(sorted(set(existing.formats) | set(source.formats))),
+                    themes=tuple(sorted(set(existing.themes) | set(source.themes))),
+                    resources=tuple(resources[key] for key in sorted(resources)),
+                    status=existing.status,
+                    discovered_at=min(existing.discovered_at, source.discovered_at),
+                    created_at=existing.created_at,
+                    content_hash="",
+                )
             self.upsert_source(source)
             imported += 1
         return imported

@@ -70,6 +70,27 @@ def test_unique_url_guard(catalogue: Catalogue, source: SourceRecord) -> None:
         catalogue.upsert_source(replace(source, source_id="different-source-id"))
 
 
+def test_import_reconciles_same_url_with_different_id(
+    catalogue: Catalogue, source: SourceRecord
+) -> None:
+    catalogue.upsert_source(source)
+    incoming = replace(
+        source,
+        source_id="query-specific-id",
+        description="A longer description returned by another discovery query.",
+        formats=("GeoJSON",),
+        themes=("biodiversity",),
+        content_hash="",
+    )
+    assert catalogue.import_records([incoming.to_dict()]) == 1
+    assert catalogue.counts()["total"] == 1
+    restored = catalogue.get_source(source.source_id)
+    assert restored is not None
+    assert restored.description == incoming.description
+    assert restored.formats == ("CSV", "GeoJSON", "JSON")
+    assert restored.themes == ("biodiversity", "environment", "water")
+
+
 def test_list_and_counts(catalogue: Catalogue, source: SourceRecord) -> None:
     catalogue.upsert_source(source)
     catalogue.upsert_source(
