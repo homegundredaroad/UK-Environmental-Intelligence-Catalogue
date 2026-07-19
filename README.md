@@ -96,6 +96,7 @@ ukei discover [OPTIONS]           discover candidate sources from official catal
 ukei shard-plan [--size N]        create a parallel validation plan
 ukei merge-shards DIRECTORY       merge validation SQLite shards
 ukei merge-reports DIR OUTPUT     merge validation reports
+ukei summarize-validation IN DIR  create compact JSON and CSV review outputs
 ukei ml INPUT OUTPUT              run optional local clustering and anomaly detection
 ukei enrich INPUT OUTPUT          run capped advisory OpenAI/Gemini classification
 ```
@@ -125,6 +126,11 @@ services**; its artifact is named `ukei-resource-validation-report`.
 The comprehensive workflow now validates in parallel and publishes one merged
 `ukei-comprehensive-report`. Optional AI analysis publishes `ukei-intelligence-report`; it never
 changes catalogue evidence, licences, availability results or source lifecycle status.
+
+Version 0.9 publishes detailed validation evidence separately from the usable catalogue. Download
+`ukei-comprehensive-report` for the SQLite library, compressed canonical JSON, compact summary and
+review CSVs. Download `ukei-detailed-validation-evidence` only when record-level audit evidence is
+required. Individual shard artifacts are diagnostic and normally do not need to be downloaded.
 
 ## Evidence and safety position
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+import xml.etree.ElementTree as ET
 from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
@@ -83,6 +84,10 @@ class ResourceValidator:
             results.append(self._recency(source, resource.resource_id, resource.last_modified))
             if _is_arcgis_service(resource.url, resource.format):
                 results.append(self._arcgis_service(source, resource.resource_id, resource.url))
+            elif service_kind := _ogc_service_kind(resource.url, resource.format):
+                results.append(
+                    self._ogc_capabilities(source, resource.resource_id, resource.url, service_kind)
+                )
         return tuple(results)
 
     def _recency(
@@ -187,11 +192,77 @@ class ResourceValidator:
                 details=details,
             )
 
+    def _ogc_capabilities(
+        self, source: SourceRecord, resource_id: str, url: str, service_kind: str
+    ) -> ValidationResult:
+        parsed = urlparse(url)
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        query.update({"request": "GetCapabilities", "service": service_kind})
+        endpoint = urlunparse(parsed._replace(query=urlencode(query)))
+        details: dict[str, object] = {
+            "endpoint": endpoint,
+            "resource_id": resource_id,
+            "service_kind": service_kind,
+        }
+        try:
+            request = Request(
+                endpoint,
+                headers={"Accept": "application/xml,text/xml", "User-Agent": "ukei-catalogue/0.9"},
+            )
+            with urlopen(request, timeout=self.timeout_seconds) as response:
+                body = response.read(2_097_153)
+            if len(body) > 2_097_152:
+                raise ValueError("OGC capabilities exceeded 2 MiB")
+            root = ET.fromstring(body)
+            local_root = root.tag.rsplit("}", 1)[-1].casefold()
+            expected = "capabilities" in local_root
+            member_name = "Layer" if service_kind == "WMS" else "FeatureType"
+            member_count = sum(
+                element.tag.rsplit("}", 1)[-1] == member_name for element in root.iter()
+            )
+            valid = expected and member_count > 0
+            details.update(
+                {
+                    "member_count": member_count,
+                    "outcome": "semantically_valid" if valid else "semantic_failure",
+                    "root_element": local_root,
+                }
+            )
+            return ValidationResult(
+                source_id=source.source_id,
+                check_name="resource.service",
+                passed=valid,
+                message=(
+                    f"{service_kind} capabilities describe {member_count} members"
+                    if valid
+                    else f"FAILED: {service_kind} capabilities are incomplete"
+                ),
+                details=details,
+            )
+        except (HTTPError, URLError, OSError, ValueError, ET.ParseError) as exc:
+            details.update({"failure_reason": str(exc), "outcome": _service_failure_outcome(exc)})
+            return ValidationResult(
+                source_id=source.source_id,
+                check_name="resource.service",
+                passed=False,
+                message=f"FAILED: {service_kind} capabilities check failed: {exc}",
+                details=details,
+            )
+
 
 def _is_arcgis_service(url: str, format_name: str) -> bool:
     del format_name
     path = urlparse(url).path.rstrip("/").casefold()
     return re.search(r"/(?:feature|map)server(?:/\d+)?$", path) is not None
+
+
+def _ogc_service_kind(url: str, format_name: str) -> str | None:
+    evidence = f"{format_name} {url}".casefold()
+    if "wms" in evidence or "service=wms" in evidence:
+        return "WMS"
+    if "wfs" in evidence or "service=wfs" in evidence:
+        return "WFS"
+    return None
 
 
 def _service_failure_outcome(exc: Exception) -> str:

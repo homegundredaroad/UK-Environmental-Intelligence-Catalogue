@@ -9,6 +9,7 @@ from typing import Any
 from ukei.discovery.base import DiscoveryCandidate, DiscoveryConnector, DiscoveryError
 from ukei.discovery.http import JsonHttpClient
 from ukei.models import ResourceReference, SourceRecord, make_source_id, utc_now
+from ukei.normalization import clean_text, normalize_format
 from ukei.url_safety import url_error
 
 
@@ -102,7 +103,7 @@ class CkanConnector(DiscoveryConnector):
                     value
                     for resource in item.get("resources", [])
                     if isinstance(resource, Mapping)
-                    if (value := _text(resource.get("format")))
+                    if (value := normalize_format(resource.get("format")))
                 }
             )
             themes = sorted(
@@ -118,7 +119,7 @@ class CkanConnector(DiscoveryConnector):
                 title=title,
                 url=canonical_url,
                 publisher=publisher or "Publisher not supplied by CKAN",
-                description=_text(item.get("notes")),
+                description=clean_text(item.get("notes")),
                 licence=licence,
                 geographic_scope="United Kingdom; verify dataset record",
                 update_frequency="not supplied by discovery response",
@@ -136,7 +137,7 @@ class CkanConnector(DiscoveryConnector):
 
 
 def _text(value: object) -> str:
-    return str(value).strip() if value is not None else ""
+    return clean_text(value)
 
 
 def _resources(
@@ -159,7 +160,7 @@ def _resources(
                 resource_id=resource_id,
                 url=url,
                 name=_text(raw.get("name")) or _text(raw.get("description")),
-                format=_text(raw.get("format")),
+                format=normalize_format(raw.get("format")),
                 media_type=_text(raw.get("mimetype")),
                 licence=licence,
                 last_modified=_optional_datetime(raw.get("last_modified")) or package_modified,

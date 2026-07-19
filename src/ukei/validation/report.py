@@ -10,6 +10,7 @@ from ukei.models import SourceRecord, SourceStatus, ValidationResult, utc_now
 from ukei.validation.base import MetadataValidator
 from ukei.validation.live import UrlValidator
 from ukei.validation.resources import ResourceValidator
+from ukei.validation.severity import result_severity, source_severity
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,12 +29,19 @@ class SourceValidation:
     def passed(self) -> bool:
         return all(result.passed for result in self.results)
 
+    @property
+    def severity(self) -> str:
+        return source_severity(self.results)
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "metadata_score": self.metadata_score,
             "passed": self.passed,
             "resource_count": self.resource_count,
-            "results": [result.to_dict() for result in self.results],
+            "severity": self.severity,
+            "results": [
+                {**result.to_dict(), "severity": result_severity(result)} for result in self.results
+            ],
             "source_id": self.source_id,
             "status_after": self.status_after.value,
             "status_before": self.status_before.value,
@@ -50,7 +58,7 @@ class ValidationReport:
     resources: bool
     started_at: datetime
     completed_at: datetime
-    report_version: int = 2
+    report_version: int = 3
 
     @property
     def all_passed(self) -> bool:
@@ -61,6 +69,7 @@ class ValidationReport:
         resource_results = [
             result for result in results if result.check_name.startswith("resource.")
         ]
+        severities = [result_severity(result) for result in results]
         return {
             "all_passed": self.all_passed,
             "checked_count": len(self.sources),
@@ -72,6 +81,14 @@ class ValidationReport:
             "live": self.live,
             "passed_count": sum(source.passed for source in self.sources),
             "report_version": self.report_version,
+            "severity_counts": {
+                severity: severities.count(severity)
+                for severity in ("pass", "warning", "error", "critical")
+            },
+            "source_severity_counts": {
+                severity: sum(source.severity == severity for source in self.sources)
+                for severity in ("pass", "warning", "error", "critical")
+            },
             "resource_count": sum(source.resource_count for source in self.sources),
             "resource_checks": {
                 "attempted": sum(result.check_name == "resource.url" for result in results),

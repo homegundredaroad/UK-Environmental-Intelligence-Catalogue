@@ -145,7 +145,7 @@ def test_arcgis_connector_parses_candidates() -> None:
     candidates = connector.discover("habitat", 10)
     assert len(candidates) == 1
     assert candidates[0].source.publisher == "Natural England"
-    assert candidates[0].source.formats == ("Feature Service",)
+    assert candidates[0].source.formats == ("ArcGIS GeoServices REST API",)
     assert candidates[0].source.resources[0].authoritative
     assert candidates[0].source.resources[0].url.endswith("/FeatureServer")
     assert client.calls[0][1]["q"] == "(habitat) AND owner:Opendata_NE"

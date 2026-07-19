@@ -20,6 +20,7 @@ from ukei.models import SourceRecord, SourceStatus, make_source_id
 from ukei.seeds import load_official_seed
 from ukei.validation import ResourceValidator, UrlValidator, run_validation
 from ukei.validation.merge import merge_report_shards
+from ukei.validation.summary import build_validation_summary
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -112,6 +113,12 @@ def build_parser() -> argparse.ArgumentParser:
     merge_reports = subparsers.add_parser("merge-reports", help="merge validation JSON reports")
     merge_reports.add_argument("directory", type=Path)
     merge_reports.add_argument("output", type=Path)
+
+    summarize = subparsers.add_parser(
+        "summarize-validation", help="create compact review outputs from a validation report"
+    )
+    summarize.add_argument("input", type=Path)
+    summarize.add_argument("output_directory", type=Path)
 
     ml = subparsers.add_parser("ml", help="run optional local clustering and anomaly detection")
     ml.add_argument("input", type=Path)
@@ -341,11 +348,19 @@ def run(argv: Sequence[str] | None = None) -> int:
             print(json.dumps(catalogue.merge_validation_shards(args.directory), sort_keys=True))
         elif args.command == "merge-reports":
             report = merge_report_shards(args.directory)
+            expected = catalogue.counts()["total"]
+            if report["source_count"] != expected:
+                raise CatalogueError(
+                    f"validation report coverage mismatch: {report['source_count']} of {expected}"
+                )
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(
                 json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
             )
             print(f"Merged {report['source_count']} source assessments to {args.output}")
+        elif args.command == "summarize-validation":
+            summary = build_validation_summary(args.input, args.output_directory)
+            print(f"Summarised {summary['source_count']} sources to {args.output_directory}")
         elif args.command == "ml":
             report = build_ml_report(args.input, args.output)
             print(f"Analysed {report['record_count']} records to {args.output}")
@@ -353,7 +368,10 @@ def run(argv: Sequence[str] | None = None) -> int:
             report = enrich_catalogue(
                 args.input, args.output, provider=args.provider, max_records=args.max_records
             )
-            print(f"Generated {len(report['rows'])} advisory classifications to {args.output}")
+            print(
+                f"Generated {len(report['rows'])} advisory classifications with "
+                f"{report['error_count']} errors to {args.output}"
+            )
         return 0
     except (
         CatalogueError,

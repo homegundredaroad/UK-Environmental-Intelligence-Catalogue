@@ -9,6 +9,7 @@ from typing import Any
 from ukei.discovery.base import DiscoveryCandidate, DiscoveryConnector, DiscoveryError
 from ukei.discovery.http import JsonHttpClient
 from ukei.models import ResourceReference, SourceRecord, make_source_id, utc_now
+from ukei.normalization import clean_text, normalize_format
 from ukei.url_safety import url_error
 
 
@@ -112,7 +113,7 @@ class ArcGisConnector(DiscoveryConnector):
                         resource_id=remote_id,
                         url=resource_url,
                         name=title,
-                        format=_text(item.get("type")) or "ArcGIS item",
+                        format=normalize_format(item.get("type")) or "ArcGIS item",
                         licence=licence,
                         last_modified=_arcgis_datetime(item.get("modified")),
                         provenance_url=canonical_url,
@@ -131,7 +132,7 @@ class ArcGisConnector(DiscoveryConnector):
                 licence=licence,
                 geographic_scope="England; verify item extent",
                 update_frequency="not supplied by discovery response",
-                formats=(_text(item.get("type")) or "ArcGIS item",),
+                formats=(normalize_format(item.get("type")) or "ArcGIS item",),
                 themes=tuple(_text(tag) for tag in tags if _text(tag)),
                 resources=resources,
                 discovered_at=retrieved_at,
@@ -145,7 +146,7 @@ class ArcGisConnector(DiscoveryConnector):
 
 
 def _text(value: object) -> str:
-    return str(value).strip() if value is not None else ""
+    return clean_text(value)
 
 
 def _arcgis_datetime(value: object) -> datetime | None:

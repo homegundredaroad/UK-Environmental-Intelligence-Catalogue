@@ -25,6 +25,7 @@ def merge_report_shards(directory: str | Path) -> dict[str, Any]:
     resource_results = [
         result for result in results if str(result.get("check_name", "")).startswith("resource.")
     ]
+    severities = [str(result.get("severity", "pass")) for result in results]
     return {
         "all_passed": all(bool(source.get("passed")) for source in sources),
         "checked_count": len(sources),
@@ -51,7 +52,15 @@ def merge_report_shards(directory: str | Path) -> dict[str, Any]:
         },
         "resources": any(bool(report.get("resources")) for report in reports),
         "shard_count": len(reports),
+        "severity_counts": {
+            severity: severities.count(severity)
+            for severity in ("pass", "warning", "error", "critical")
+        },
         "source_count": len(sources),
+        "source_severity_counts": {
+            severity: sum(source.get("severity") == severity for source in sources)
+            for severity in ("pass", "warning", "error", "critical")
+        },
         "sources": sorted(sources, key=lambda source: str(source["source_id"])),
         "started_at": min(str(report["started_at"]) for report in reports),
     }

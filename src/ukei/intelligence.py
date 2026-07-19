@@ -9,6 +9,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from ukei.normalization import clean_text
+
 PROMPT_VERSION = "ukei-advisory-v1"
 
 
@@ -34,11 +36,12 @@ def build_ml_report(input_path: str | Path, output_path: str | Path) -> dict[str
     corpus = [
         " ".join(
             [
-                str(record.get("title", "")),
-                str(record.get("description", "")),
-                str(record.get("publisher", "")),
-                " ".join(str(value) for value in record.get("themes", [])),
-                " ".join(str(value) for value in record.get("formats", [])),
+                clean_text(record.get("title", "")),
+                clean_text(record.get("title", "")),
+                clean_text(record.get("description", "")),
+                clean_text(record.get("publisher", "")),
+                " ".join(clean_text(value) for value in record.get("themes", [])),
+                " ".join(clean_text(value) for value in record.get("formats", [])),
             ]
         )
         for record in records
@@ -48,16 +51,14 @@ def build_ml_report(input_path: str | Path, output_path: str | Path) -> dict[str
     )
     matrix = vectorizer.fit_transform(corpus)
     cluster_count = min(48, max(8, int(math.sqrt(len(records) / 2))))
-    clusters = MiniBatchKMeans(
+    model = MiniBatchKMeans(
         n_clusters=cluster_count, random_state=26, n_init="auto", batch_size=512
-    ).fit_predict(matrix)
+    ).fit(matrix)
+    clusters = model.labels_
     forest = IsolationForest(contamination=0.02, random_state=26, n_jobs=-1)
     outlier_labels = forest.fit_predict(matrix)
     anomaly_scores = -forest.score_samples(matrix)
     terms = vectorizer.get_feature_names_out()
-    model = MiniBatchKMeans(
-        n_clusters=cluster_count, random_state=26, n_init="auto", batch_size=512
-    ).fit(matrix)
     cluster_terms = {
         str(index): [str(terms[position]) for position in center.argsort()[-8:][::-1]]
         for index, center in enumerate(model.cluster_centers_)
@@ -68,6 +69,7 @@ def build_ml_report(input_path: str | Path, output_path: str | Path) -> dict[str
             "cluster": int(clusters[index]),
             "is_outlier": bool(outlier_labels[index] == -1),
             "source_id": str(record["source_id"]),
+            "title": clean_text(record.get("title", "")),
         }
         for index, record in enumerate(records)
     ]
@@ -77,7 +79,7 @@ def build_ml_report(input_path: str | Path, output_path: str | Path) -> dict[str
         "cluster_terms": cluster_terms,
         "method": "TF-IDF + MiniBatchKMeans + IsolationForest",
         "record_count": len(records),
-        "report_version": 1,
+        "report_version": 2,
         "rows": rows,
     }
     destination = Path(output_path)
@@ -170,10 +172,6 @@ def enrich_catalogue(
         raise ValueError("max_records must be between 1 and 500")
     openai_model = os.getenv("OPENAI_MODEL", "").strip()
     gemini_model = os.getenv("GEMINI_MODEL", "").strip()
-    if provider in {"openai", "both"} and not (os.getenv("OPENAI_API_KEY") and openai_model):
-        raise ValueError("OPENAI_API_KEY and OPENAI_MODEL are required")
-    if provider in {"gemini", "both"} and not (os.getenv("GEMINI_API_KEY") and gemini_model):
-        raise ValueError("GEMINI_API_KEY and GEMINI_MODEL are required")
     records = sorted(
         _records(input_path),
         key=lambda record: (
@@ -184,6 +182,9 @@ def enrich_catalogue(
     )[:max_records]
     providers = [provider] if provider != "both" else ["openai", "gemini"]
     rows: list[dict[str, Any]] = []
+    errors: list[dict[str, str]] = []
+    destination = Path(output_path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     for record in records:
         prompt = _prompt(record)
         for selected in providers:
@@ -191,29 +192,52 @@ def enrich_catalogue(
             cache_key = hashlib.sha256(
                 f"{PROMPT_VERSION}\0{selected}\0{model}\0{prompt}".encode()
             ).hexdigest()
-            payload, returned_model = (
-                _openai(prompt, model) if selected == "openai" else _gemini(prompt, model)
-            )
-            rows.append(
-                {
-                    "advisory_only": True,
-                    "cache_key": cache_key,
-                    "classification": payload,
-                    "model": returned_model,
-                    "prompt_version": PROMPT_VERSION,
-                    "provider": selected,
-                    "source_id": record["source_id"],
-                }
-            )
+            try:
+                if not model or not os.getenv(f"{selected.upper()}_API_KEY"):
+                    raise ValueError(f"{selected} API key and model are required")
+                payload, returned_model = (
+                    _openai(prompt, model) if selected == "openai" else _gemini(prompt, model)
+                )
+                rows.append(
+                    {
+                        "advisory_only": True,
+                        "cache_key": cache_key,
+                        "classification": payload,
+                        "model": returned_model,
+                        "prompt_version": PROMPT_VERSION,
+                        "provider": selected,
+                        "source_id": record["source_id"],
+                    }
+                )
+            except Exception as exc:  # provider isolation is a deliberate resilience boundary
+                errors.append(
+                    {
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "provider": selected,
+                        "source_id": str(record["source_id"]),
+                    }
+                )
+            _write_enrichment_report(destination, provider, len(records), rows, errors)
+    return _write_enrichment_report(destination, provider, len(records), rows, errors)
+
+
+def _write_enrichment_report(
+    destination: Path,
+    provider: str,
+    record_count: int,
+    rows: list[dict[str, Any]],
+    errors: list[dict[str, str]],
+) -> dict[str, Any]:
     report = {
         "advisory_only": True,
         "canonical_evidence_modified": False,
+        "error_count": len(errors),
+        "errors": errors,
         "provider_mode": provider,
-        "record_count": len(records),
-        "report_version": 1,
+        "record_count": record_count,
+        "report_version": 2,
         "rows": rows,
+        "successful_classifications": len(rows),
     }
-    destination = Path(output_path)
-    destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report

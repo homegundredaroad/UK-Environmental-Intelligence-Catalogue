@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.9.0
+
+- Add HTML/CSS cleansing and conservative format normalization before storage and ML analysis.
+- Fit clustering once, weight titles, include titles in outlier rows and remove markup-driven noise.
+- Add review severity that separates critical missing resources from warnings and transient failures.
+- Add compact validation summaries plus confirmed-missing and licence-review CSV outputs.
+- Add bounded WMS and WFS `GetCapabilities` semantic validation.
+- Isolate OpenAI and Gemini failures, checkpoint partial results and retain structured error evidence.
+- Split the 151 MB detailed validation evidence from the compact usable catalogue artifact.
+- Compress canonical JSON, remove duplicated discovery reports and reduce shard retention to 30 days.
+- Reject incomplete shard merges when report coverage differs from the canonical source count.
+
 ## 0.8.0
 
 - Split comprehensive validation into deterministic 500-source GitHub Actions shards.

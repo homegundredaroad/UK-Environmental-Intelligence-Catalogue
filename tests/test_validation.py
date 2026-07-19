@@ -11,7 +11,7 @@ import pytest
 from ukei.models import ResourceReference, SourceRecord, SourceStatus
 from ukei.validation import MetadataValidator, ResourceValidator, UrlValidator, run_validation
 from ukei.validation.live import _failure_outcome
-from ukei.validation.resources import _service_failure_outcome
+from ukei.validation.resources import _ogc_service_kind, _service_failure_outcome
 
 
 class FakeResponse(io.BytesIO):
@@ -193,6 +193,31 @@ def test_resource_validator_records_url_licence_and_recency(
     assert report.sources[0].status_after is SourceStatus.CANDIDATE
     assert report.to_dict()["resource_count"] == 1
     assert report.to_dict()["resources"] is True
+
+
+def test_resource_validator_semantically_validates_wms(
+    source: SourceRecord, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    body = (
+        b"<WMS_Capabilities><Capability><Layer><Name>air</Name></Layer>"
+        b"</Capability></WMS_Capabilities>"
+    )
+    resource = ResourceReference(
+        resource_id="wms-1",
+        url="https://example.gov.uk/geoserver",
+        format="WMS",
+        licence="OGL-3.0",
+    )
+    monkeypatch.setattr(
+        "ukei.validation.resources.urlopen", lambda *_args, **_kwargs: FakeResponse(body)
+    )
+    monkeypatch.setattr("ukei.validation.live.urlopen", lambda *_args, **_kwargs: FakeResponse())
+    results = ResourceValidator().validate(replace(source, resources=(resource,)))
+    service = next(result for result in results if result.check_name == "resource.service")
+    assert service.passed
+    assert service.details["service_kind"] == "WMS"
+    assert service.details["member_count"] == 1
+    assert _ogc_service_kind("https://example.gov.uk/?service=WFS", "") == "WFS"
 
 
 def test_resource_validator_flags_absence_and_staleness(source: SourceRecord) -> None:

@@ -14,11 +14,16 @@ Choose **Commit changes** once, after all files have been added or replaced.
 1. Open **Actions** and select **CI**.
 2. Select **Run workflow**.
 3. Enable only **Run the broad multi-theme discovery and validation scan (VVIP)**.
-4. Select **Run workflow** and allow up to six hours.
-5. When the run is green, open it and download **ukei-comprehensive-report**.
+4. Optionally enable AI enrichment and initially leave its record cap at 50.
+5. Select **Run workflow** and allow approximately two hours; individual shards are capped at 90
+   minutes.
+6. When the run is green, download **ukei-comprehensive-report** and, if enabled,
+   **ukei-intelligence-report**.
 
-The artifact contains per-theme paginated discovery evidence, a coverage ledger, JSON and SQLite
-catalogues before and after validation, the comprehensive validation report, and integrity status.
+The main artifact contains the validated SQLite catalogue, compressed canonical JSON, coverage
+ledger, integrity status, compact summary and review CSVs. Detailed record-level evidence is in the
+separate **ukei-detailed-validation-evidence** artifact. The 31 shard artifacts are diagnostic and
+normally do not need to be downloaded or uploaded to Drive.
 
 ## Important scope statement
 
