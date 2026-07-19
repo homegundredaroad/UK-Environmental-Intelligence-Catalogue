@@ -76,3 +76,7 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 python_version = "3.11"
 strict = true
 files = ["src", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["google", "google.*", "openai", "sklearn", "sklearn.*"]
+ignore_missing_imports = true

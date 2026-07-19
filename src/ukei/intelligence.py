@@ -23,9 +23,9 @@ def _records(path: str | Path) -> list[dict[str, Any]]:
 def build_ml_report(input_path: str | Path, output_path: str | Path) -> dict[str, Any]:
     """Cluster sources and identify metadata outliers using deterministic local ML."""
     try:
-        from sklearn.cluster import MiniBatchKMeans  # type: ignore[import-untyped]
-        from sklearn.ensemble import IsolationForest  # type: ignore[import-untyped]
-        from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore[import-untyped]
+        from sklearn.cluster import MiniBatchKMeans
+        from sklearn.ensemble import IsolationForest
+        from sklearn.feature_extraction.text import TfidfVectorizer
     except ImportError as exc:  # pragma: no cover - exercised by installation smoke tests
         raise RuntimeError("install the 'intelligence' extra to run ML analysis") from exc
     records = _records(input_path)
@@ -129,7 +129,7 @@ def _validate_ai_payload(payload: object) -> dict[str, Any]:
 
 
 def _openai(prompt: str, model: str) -> tuple[dict[str, Any], str]:
-    from openai import OpenAI  # type: ignore[import-not-found]
+    from openai import OpenAI
 
     response = OpenAI().responses.create(
         model=model,
@@ -146,7 +146,7 @@ def _openai(prompt: str, model: str) -> tuple[dict[str, Any], str]:
 
 
 def _gemini(prompt: str, model: str) -> tuple[dict[str, Any], str]:
-    from google import genai  # type: ignore[import-not-found]
+    from google import genai
 
     response = genai.Client(api_key=os.environ["GEMINI_API_KEY"]).models.generate_content(
         model=model,
