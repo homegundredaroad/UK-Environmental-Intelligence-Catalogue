@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0
+
+- Split comprehensive validation into deterministic 500-source GitHub Actions shards.
+- Merge shard databases and JSON reports into one integrity-checked canonical artifact.
+- Raise multi-theme discovery depth to 1,000 records per provider and query.
+- Avoid treating WFS, WMS and ArcGIS query endpoints as ArcGIS REST service roots.
+- Add optional local TF-IDF clustering, anomaly detection and review prioritisation.
+- Add capped, schema-validated OpenAI and Gemini advisory classification.
+- Keep all model outputs separate from canonical evidence and lifecycle decisions.
+
 ## 0.7.0
 
 - Add auditable CKAN and ArcGIS pagination up to 1,000 results per provider/query.

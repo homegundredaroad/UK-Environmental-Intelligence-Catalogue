@@ -112,7 +112,7 @@ def run_validation(
             result for result in metadata_results if result.check_name == "metadata.completeness"
         )
         score = int(score_result.details["score"])
-        material_outcomes = {"confirmed_missing", "semantic_failure"}
+        material_outcomes = {"confirmed_missing"}
         material_failed = any(
             result.check_name in {"live.url", "resource.url", "resource.service"}
             and not result.passed

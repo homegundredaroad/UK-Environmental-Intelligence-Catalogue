@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -285,6 +285,58 @@ class Catalogue:
             self.upsert_source(source)
             imported += 1
         return imported
+
+    def merge_validation_shards(self, directory: str | Path) -> dict[str, int]:
+        """Merge independently validated SQLite copies into this canonical catalogue."""
+        self.initialize()
+        shard_paths = sorted(Path(directory).rglob("*.sqlite3"))
+        shard_paths = [path for path in shard_paths if path.resolve() != self.path.resolve()]
+        if not shard_paths:
+            raise CatalogueError("no validation shard databases were found")
+        expected_sources = self.counts()["total"]
+        event_rows: list[tuple[object, ...]] = []
+        degraded_ids: set[str] = set()
+        for shard_path in shard_paths:
+            with closing(sqlite3.connect(shard_path)) as shard:
+                if shard.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+                    raise CatalogueError(f"invalid shard database: {shard_path}")
+                source_count = int(shard.execute("SELECT COUNT(*) FROM sources").fetchone()[0])
+                if source_count != expected_sources:
+                    raise CatalogueError(f"shard source count mismatch: {shard_path}")
+                event_rows.extend(
+                    tuple(row)
+                    for row in shard.execute(
+                        """
+                        SELECT validation_id, source_id, check_name, passed, message,
+                               checked_at, details_json
+                        FROM validation_events
+                        """
+                    ).fetchall()
+                )
+                degraded_ids.update(
+                    str(row[0])
+                    for row in shard.execute(
+                        "SELECT source_id FROM sources WHERE status = 'degraded'"
+                    ).fetchall()
+                )
+        with self.connect() as connection:
+            connection.executemany(
+                """
+                INSERT OR IGNORE INTO validation_events (
+                    validation_id, source_id, check_name, passed, message, checked_at, details_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                event_rows,
+            )
+        for source_id in sorted(degraded_ids):
+            source = self.get_source(source_id)
+            if source is not None and source.status is not SourceStatus.RETIRED:
+                self.upsert_source(replace(source, status=SourceStatus.DEGRADED))
+        return {
+            "degraded_sources": len(degraded_ids),
+            "events_merged": len(event_rows),
+            "shards_merged": len(shard_paths),
+        }
 
     @staticmethod
     def _source_values(source: SourceRecord) -> dict[str, Any]:

@@ -190,8 +190,8 @@ class ResourceValidator:
 
 def _is_arcgis_service(url: str, format_name: str) -> bool:
     del format_name
-    lowered = url.casefold()
-    return "/featureserver" in lowered or "/mapserver" in lowered
+    path = urlparse(url).path.rstrip("/").casefold()
+    return re.search(r"/(?:feature|map)server(?:/\d+)?$", path) is not None
 
 
 def _service_failure_outcome(exc: Exception) -> str:

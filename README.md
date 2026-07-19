@@ -70,6 +70,10 @@ ukei validate
 ukei validate --live --limit 20 --output validation-report.json
 ukei validate --live --resources --resource-limit 2 --output resource-report.json
 ukei discover --provider all --query "air quality" --output discovery.json
+# Optional add-ons (local ML plus OpenAI/Gemini clients)
+python -m pip install -e ".[intelligence]"
+ukei ml catalogue.json ml-report.json
+ukei enrich catalogue.json ai-advisory.json --provider both --max-records 50
 ```
 
 By default the database is created at `.ukei/catalogue.sqlite3`. Override it with
@@ -89,6 +93,11 @@ ukei validate [SOURCE_ID]         run metadata, landing-page and resource valida
 ukei export OUTPUT.json           create a canonical JSON export
 ukei import-json INPUT.json       import records from a canonical export
 ukei discover [OPTIONS]           discover candidate sources from official catalogue APIs
+ukei shard-plan [--size N]        create a parallel validation plan
+ukei merge-shards DIRECTORY       merge validation SQLite shards
+ukei merge-reports DIR OUTPUT     merge validation reports
+ukei ml INPUT OUTPUT              run optional local clustering and anomaly detection
+ukei enrich INPUT OUTPUT          run capped advisory OpenAI/Gemini classification
 ```
 
 Run `ukei COMMAND --help` for complete arguments. Commands return non-zero exit codes for invalid
@@ -113,6 +122,9 @@ Live validation is separately opt-in using **Discover and validate one bounded c
 artifact is named `ukei-validation-report`.
 Resource validation is separately opt-in using **Discover and validate underlying files and
 services**; its artifact is named `ukei-resource-validation-report`.
+The comprehensive workflow now validates in parallel and publishes one merged
+`ukei-comprehensive-report`. Optional AI analysis publishes `ukei-intelligence-report`; it never
+changes catalogue evidence, licences, availability results or source lifecycle status.
 
 ## Evidence and safety position
 

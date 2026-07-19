@@ -14,10 +14,12 @@ from ukei.catalogue import Catalogue, CatalogueError
 from ukei.config import ConfigurationError, Settings
 from ukei.discovery import ArcGisConnector, CkanConnector, DiscoveryError, run_discovery
 from ukei.discovery.http import JsonHttpClient
+from ukei.intelligence import build_ml_report, enrich_catalogue
 from ukei.logging_config import configure_logging
 from ukei.models import SourceRecord, SourceStatus, make_source_id
 from ukei.seeds import load_official_seed
 from ukei.validation import ResourceValidator, UrlValidator, run_validation
+from ukei.validation.merge import merge_report_shards
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -76,6 +78,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="maximum resources checked per source (default: 2)",
     )
     validate.add_argument("--limit", type=int, help="maximum number of sources to validate")
+    validate.add_argument("--offset", type=int, default=0, help="sources to skip before validation")
     validate.add_argument("--output", type=Path, help="write a machine-readable JSON report")
     validate.add_argument(
         "--report-only",
@@ -99,6 +102,26 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="write discovered candidates to the local catalogue",
     )
+
+    shard_plan = subparsers.add_parser("shard-plan", help="emit a GitHub Actions shard matrix")
+    shard_plan.add_argument("--size", type=int, default=500, help="sources per shard")
+
+    merge_shards = subparsers.add_parser("merge-shards", help="merge validation shard databases")
+    merge_shards.add_argument("directory", type=Path)
+
+    merge_reports = subparsers.add_parser("merge-reports", help="merge validation JSON reports")
+    merge_reports.add_argument("directory", type=Path)
+    merge_reports.add_argument("output", type=Path)
+
+    ml = subparsers.add_parser("ml", help="run optional local clustering and anomaly detection")
+    ml.add_argument("input", type=Path)
+    ml.add_argument("output", type=Path)
+
+    enrich = subparsers.add_parser("enrich", help="produce optional advisory AI classifications")
+    enrich.add_argument("input", type=Path)
+    enrich.add_argument("output", type=Path)
+    enrich.add_argument("--provider", choices=("openai", "gemini", "both"), default="both")
+    enrich.add_argument("--max-records", type=int, default=50)
     return parser
 
 
@@ -223,10 +246,16 @@ def run(argv: Sequence[str] | None = None) -> int:
                 return 2
             if args.limit is not None and args.limit <= 0:
                 raise ValueError("--limit must be greater than zero")
+            if args.offset < 0:
+                raise ValueError("--offset must not be negative")
             if args.resource_limit <= 0:
                 raise ValueError("--resource-limit must be greater than zero")
+            records = records[args.offset :]
             if args.limit is not None:
                 records = records[: args.limit]
+            if not records:
+                print("No sources in requested validation range", file=sys.stderr)
+                return 2
             validation_report = run_validation(
                 tuple(records),
                 UrlValidator(settings.http_timeout_seconds) if args.live else None,
@@ -299,8 +328,41 @@ def run(argv: Sequence[str] | None = None) -> int:
             print(f"Report: {args.output}")
             for error in discovery_report.errors:
                 print(f"WARNING: {error}", file=sys.stderr)
+        elif args.command == "shard-plan":
+            if args.size <= 0:
+                raise ValueError("--size must be greater than zero")
+            total = catalogue.counts()["total"]
+            include = [
+                {"index": index, "offset": offset, "limit": min(args.size, total - offset)}
+                for index, offset in enumerate(range(0, total, args.size))
+            ]
+            print(json.dumps({"include": include}, separators=(",", ":")))
+        elif args.command == "merge-shards":
+            print(json.dumps(catalogue.merge_validation_shards(args.directory), sort_keys=True))
+        elif args.command == "merge-reports":
+            report = merge_report_shards(args.directory)
+            args.output.parent.mkdir(parents=True, exist_ok=True)
+            args.output.write_text(
+                json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            print(f"Merged {report['source_count']} source assessments to {args.output}")
+        elif args.command == "ml":
+            report = build_ml_report(args.input, args.output)
+            print(f"Analysed {report['record_count']} records to {args.output}")
+        elif args.command == "enrich":
+            report = enrich_catalogue(
+                args.input, args.output, provider=args.provider, max_records=args.max_records
+            )
+            print(f"Generated {len(report['rows'])} advisory classifications to {args.output}")
         return 0
-    except (CatalogueError, ConfigurationError, DiscoveryError, ValueError, OSError) as exc:
+    except (
+        CatalogueError,
+        ConfigurationError,
+        DiscoveryError,
+        RuntimeError,
+        ValueError,
+        OSError,
+    ) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 

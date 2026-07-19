@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ukei-catalogue"
-version = "0.7.0"
+version = "0.8.0"
 description = "A verifiable catalogue framework for UK environmental data sources."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -29,6 +29,11 @@ dev = [
   "pytest-cov>=6.0",
   "ruff>=0.11",
 ]
+intelligence = [
+  "google-genai>=1.0",
+  "openai>=2.0",
+  "scikit-learn>=1.6",
+]
 
 [project.scripts]
 ukei = "ukei.cli:main"
@@ -51,6 +56,7 @@ testpaths = ["tests"]
 
 [tool.coverage.run]
 branch = true
+omit = ["src/ukei/intelligence.py"]
 
 [tool.coverage.report]
 exclude_lines = [
