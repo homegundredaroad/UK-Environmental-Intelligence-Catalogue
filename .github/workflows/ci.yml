@@ -360,7 +360,7 @@ jobs:
           name: ukei-validation-shard-${{ matrix.index }}
           path: shard-output/
           if-no-files-found: error
-          retention-days: 90
+          retention-days: 30
 
   comprehensive-merge:
     name: Merge comprehensive evidence
@@ -394,19 +394,34 @@ jobs:
           ukei --database comprehensive-output/validated-catalogue.sqlite3 merge-shards shards
           ukei --database comprehensive-output/validated-catalogue.sqlite3 merge-reports \
             shards comprehensive-output/comprehensive-validation-report.json
+          ukei --database comprehensive-output/validated-catalogue.sqlite3 \
+            summarize-validation comprehensive-output/comprehensive-validation-report.json \
+            comprehensive-output/review
           ukei --database comprehensive-output/validated-catalogue.sqlite3 export \
             comprehensive-output/validated-catalogue.json
+          gzip -9 comprehensive-output/validated-catalogue.json
           ukei --database comprehensive-output/validated-catalogue.sqlite3 status \
             > comprehensive-output/final-status.txt
           cp discovery/coverage-ledger.json comprehensive-output/coverage-ledger.json
-          cp -R discovery/discovery comprehensive-output/discovery
-      - name: Retain comprehensive evidence
+      - name: Retain usable comprehensive catalogue
         uses: actions/upload-artifact@v7
         with:
           name: ukei-comprehensive-report
-          path: comprehensive-output/
+          path: |
+            comprehensive-output/validated-catalogue.sqlite3
+            comprehensive-output/validated-catalogue.json.gz
+            comprehensive-output/final-status.txt
+            comprehensive-output/coverage-ledger.json
+            comprehensive-output/review/
           if-no-files-found: error
           retention-days: 90
+      - name: Retain detailed validation evidence separately
+        uses: actions/upload-artifact@v7
+        with:
+          name: ukei-detailed-validation-evidence
+          path: comprehensive-output/comprehensive-validation-report.json
+          if-no-files-found: error
+          retention-days: 30
 
   intelligence:
     name: Optional ML and AI advisory analysis
@@ -435,8 +450,10 @@ jobs:
           GEMINI_MODEL: ${{ secrets.GEMINI_MODEL }}
         run: |
           mkdir -p intelligence-output
-          ukei ml input/validated-catalogue.json intelligence-output/ml-report.json
-          ukei enrich input/validated-catalogue.json intelligence-output/ai-advisory-report.json \
+          gzip -dc input/validated-catalogue.json.gz > "${RUNNER_TEMP}/validated-catalogue.json"
+          ukei ml "${RUNNER_TEMP}/validated-catalogue.json" intelligence-output/ml-report.json
+          ukei enrich "${RUNNER_TEMP}/validated-catalogue.json" \
+            intelligence-output/ai-advisory-report.json \
             --provider both --max-records ${{ inputs.ai_max_records }}
       - name: Retain advisory intelligence
         if: always()
