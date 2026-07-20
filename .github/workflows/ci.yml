@@ -322,7 +322,10 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.run_comprehensive_scan
     needs: comprehensive-discovery
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    # Some legacy geospatial services consume the full per-request timeout.
+    # Preserve comprehensive checking while keeping each shard below GitHub's
+    # six-hour hosted-job ceiling.
+    timeout-minutes: 240
     strategy:
       fail-fast: false
       max-parallel: 12
@@ -354,7 +357,6 @@ jobs:
           ukei --database "shard-output/shard-${{ matrix.index }}.sqlite3" status \
             > "shard-output/status-${{ matrix.index }}.txt"
       - name: Retain validation shard
-        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: ukei-validation-shard-${{ matrix.index }}
@@ -364,7 +366,9 @@ jobs:
 
   comprehensive-merge:
     name: Merge comprehensive evidence
-    if: ${{ always() && needs.comprehensive-discovery.result == 'success' }}
+    # Never merge or publish partial scientific evidence. A cancelled, timed
+    # out, or failed shard must make this job skip until that shard succeeds.
+    if: ${{ needs.comprehensive-discovery.result == 'success' && needs.comprehensive-validation.result == 'success' }}
     needs: [comprehensive-discovery, comprehensive-validation]
     runs-on: ubuntu-latest
     timeout-minutes: 30
