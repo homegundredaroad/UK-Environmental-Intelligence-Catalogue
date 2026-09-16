@@ -6,8 +6,9 @@ import hashlib
 import json
 import math
 import os
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from ukei.normalization import clean_text
 
@@ -186,7 +187,11 @@ def _classify_with_json_retry(
     try:
         return classifier(prompt, model)
     except (json.JSONDecodeError, ValueError):
-        return classifier(prompt + "\nYour previous response was invalid. Return exactly the requested JSON schema.", model)
+        retry_prompt = (
+            prompt
+            + "\nYour previous response was invalid. Return exactly the requested JSON schema."
+        )
+        return classifier(retry_prompt, model)
 
 
 def enrich_catalogue(
