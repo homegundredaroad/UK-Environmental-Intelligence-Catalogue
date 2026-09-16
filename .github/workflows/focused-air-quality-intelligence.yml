@@ -9,9 +9,9 @@ on:
         default: true
         type: boolean
       validation_limit:
-        description: Maximum discovered sources to live-check (25-150)
+        description: Maximum discovered sources to live-check (25-100)
         required: false
-        default: 75
+        default: 50
         type: number
 
 permissions:
@@ -25,9 +25,9 @@ jobs:
   focused-scan:
     name: Focused cross-media discovery
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     env:
-      UKEI_HTTP_TIMEOUT_SECONDS: "8"
+      UKEI_HTTP_TIMEOUT_SECONDS: "6"
 
     steps:
       - name: Check out repository
@@ -47,6 +47,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p focused-output/discovery
+          : > focused-output/failed-queries.txt
+          : > focused-output/successful-queries.txt
           DB="${RUNNER_TEMP}/focused.sqlite3"
           ukei --database "${DB}" seed
 
@@ -71,13 +73,25 @@ jobs:
 
           for query in "${queries[@]}"; do
             slug=$(printf '%s' "${query}" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9-')
-            ukei --database "${DB}" discover \
+            echo "Discovering: ${query}"
+            if timeout 45s ukei --database "${DB}" discover \
               --provider all \
               --query "${query}" \
-              --limit 150 \
+              --limit 100 \
               --output "focused-output/discovery/${slug}.json" \
-              --import-candidates
+              --import-candidates; then
+              printf '%s\n' "${query}" >> focused-output/successful-queries.txt
+            else
+              rc=$?
+              printf '%s\t%s\n' "${query}" "${rc}" >> focused-output/failed-queries.txt
+              echo "Query failed or exceeded 45 seconds: ${query} (exit ${rc}); continuing." >&2
+            fi
           done
+
+          if [ ! -s focused-output/successful-queries.txt ]; then
+            echo "All targeted discovery queries failed; refusing to produce a misleading updater result." >&2
+            exit 1
+          fi
 
           ukei --database "${DB}" export focused-output/focused-catalogue.json
           ukei --database "${DB}" status > focused-output/catalogue-status.txt
@@ -96,15 +110,21 @@ jobs:
         run: |
           set -euo pipefail
           limit=${{ inputs.validation_limit }}
-          if [ "${limit}" -lt 25 ] || [ "${limit}" -gt 150 ]; then
-            echo "validation_limit must be between 25 and 150" >&2
+          if [ "${limit}" -lt 25 ] || [ "${limit}" -gt 100 ]; then
+            echo "validation_limit must be between 25 and 100" >&2
             exit 2
           fi
-          ukei --database "${RUNNER_TEMP}/focused.sqlite3" validate \
+          if timeout 240s ukei --database "${RUNNER_TEMP}/focused.sqlite3" validate \
             --live \
             --limit "${limit}" \
             --report-only \
-            --output focused-output/focused-validation-report.json
+            --output focused-output/focused-validation-report.json; then
+            echo "PASS" > focused-output/validation-status.txt
+          else
+            rc=$?
+            printf 'INCOMPLETE_OR_FAILED exit=%s\n' "${rc}" > focused-output/validation-status.txt
+            echo "Bounded validation failed or exceeded four minutes; discovery evidence will still be retained." >&2
+          fi
 
       - name: Build concise run receipt
         shell: bash
@@ -120,16 +140,44 @@ jobs:
           summary = json.loads(
               Path("focused-output/cross-media/cross-media-summary.json").read_text(encoding="utf-8")
           )
+          successes = [
+              line.strip()
+              for line in Path("focused-output/successful-queries.txt").read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          failures = [
+              line.strip()
+              for line in Path("focused-output/failed-queries.txt").read_text(encoding="utf-8").splitlines()
+              if line.strip()
+          ]
+          validation_path = Path("focused-output/validation-status.txt")
+          validation_status = (
+              validation_path.read_text(encoding="utf-8").strip()
+              if validation_path.exists()
+              else "NOT_REQUESTED"
+          )
           receipt = {
-              "receipt_version": 1,
+              "receipt_version": 2,
               "purpose": "Focused AirQuality/cross-media discovery and triage; not comprehensive validation",
               "catalogue_record_count": len(payload.get("records", [])),
               "catalogue_sha256": hashlib.sha256(catalogue.read_bytes()).hexdigest(),
+              "targeted_query_count": len(successes) + len(failures),
+              "successful_query_count": len(successes),
+              "failed_query_count": len(failures),
+              "failed_queries": failures,
+              "validation_status": validation_status,
               "cross_media_unique_source_count": summary["unique_source_count"],
               "cross_media_candidate_match_count": summary["candidate_match_count"],
               "counts_by_stressor": summary["counts_by_stressor"],
               "scientific_admissibility_conferred": False,
               "review_status": "REVIEW_REQUIRED",
+              "runtime_policy": {
+                  "job_timeout_minutes": 20,
+                  "per_query_timeout_seconds": 45,
+                  "http_timeout_seconds": 6,
+                  "per_query_result_limit": 100,
+                  "validation_timeout_seconds": 240,
+              },
           }
           Path("focused-output/run-receipt.json").write_text(
               json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -137,9 +185,10 @@ jobs:
           PY
 
       - name: Retain focused evidence
+        if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
           name: ukei-focused-air-quality-intelligence
           path: focused-output/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 30
