@@ -84,9 +84,7 @@ def build_air_quality_bridge(
         "content_hash",
         "approval_status",
     ]
-    with (output / "air-quality-sources.csv").open(
-        "w", newline="", encoding="utf-8"
-    ) as handle:
+    with (output / "air-quality-sources.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=source_fields)
         writer.writeheader()
         for record in selected:
@@ -103,12 +101,8 @@ def build_air_quality_bridge(
                     "licence_status": _licence_status(record.get("licence")),
                     "geographic_scope": record.get("geographic_scope", ""),
                     "update_frequency": record.get("update_frequency", ""),
-                    "formats": "|".join(
-                        str(value) for value in record.get("formats", []) or []
-                    ),
-                    "themes": "|".join(
-                        str(value) for value in record.get("themes", []) or []
-                    ),
+                    "formats": "|".join(str(value) for value in record.get("formats", []) or []),
+                    "themes": "|".join(str(value) for value in record.get("themes", []) or []),
                     "last_verified_at": record.get("last_verified_at", ""),
                     "content_hash": record.get("content_hash", ""),
                     "approval_status": "REVIEW_REQUIRED",
@@ -129,9 +123,7 @@ def build_air_quality_bridge(
         "approval_status",
     ]
     resource_count = 0
-    with (output / "air-quality-resources.csv").open(
-        "w", newline="", encoding="utf-8"
-    ) as handle:
+    with (output / "air-quality-resources.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=resource_fields)
         writer.writeheader()
         for record in selected:
