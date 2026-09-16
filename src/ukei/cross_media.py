@@ -53,6 +53,17 @@ def _term_pattern(term: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])", re.IGNORECASE)
 
 
+def _has_atmospheric_deposition_signal(text: str) -> bool:
+    """Require both an atmospheric context and deposition wording.
+
+    This catches phrases such as "atmospheric microplastics deposition" without
+    broadening the registry synonym to the ambiguous bare word "deposition".
+    """
+    atmospheric = re.search(r"\b(air|airborne|atmospher(?:e|ic|ically))\b", text, re.IGNORECASE)
+    deposition = re.search(r"\bdeposition\b", text, re.IGNORECASE)
+    return atmospheric is not None and deposition is not None
+
+
 def classify_record(
     record: dict[str, Any], registry: dict[str, Any] | None = None
 ) -> list[dict[str, Any]]:
@@ -72,6 +83,12 @@ def classify_record(
             },
             key=str.casefold,
         )
+        if (
+            not matched_terms
+            and entry.get("id") == "atmospheric-deposition"
+            and _has_atmospheric_deposition_signal(text)
+        ):
+            matched_terms = ["derived:atmospheric-context+deposition"]
         if not matched_terms:
             continue
         matches.append(
@@ -140,7 +157,9 @@ def build_cross_media_report(
         "matched_terms",
         "review_status",
     ]
-    with (output / "cross-media-candidates.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (output / "cross-media-candidates.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
