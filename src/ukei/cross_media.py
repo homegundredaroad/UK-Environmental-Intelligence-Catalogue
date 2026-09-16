@@ -53,7 +53,9 @@ def _term_pattern(term: str) -> re.Pattern[str]:
     return re.compile(rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])", re.IGNORECASE)
 
 
-def classify_record(record: dict[str, Any], registry: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+def classify_record(
+    record: dict[str, Any], registry: dict[str, Any] | None = None
+) -> list[dict[str, Any]]:
     """Return registry matches for one record without altering canonical evidence."""
     registry = registry or load_registry()
     text = _record_text(record)
@@ -138,7 +140,9 @@ def build_cross_media_report(
         "matched_terms",
         "review_status",
     ]
-    with (output / "cross-media-candidates.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (output / "cross-media-candidates.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
@@ -156,8 +160,14 @@ def build_cross_media_report(
         "counts_by_stressor": dict(sorted(counts.items())),
         "limitations": [
             "Text matching identifies candidates only and does not establish causation.",
-            "Measurements across air, water, soil, sediment, deposition and biota are not assumed comparable.",
-            "AirQuality must independently reacquire and validate original-provider evidence before scientific use.",
+            (
+                "Measurements across air, water, soil, sediment, deposition and biota "
+                "are not assumed comparable."
+            ),
+            (
+                "AirQuality must independently reacquire and validate original-provider "
+                "evidence before scientific use."
+            ),
         ],
     }
     (output / "cross-media-summary.json").write_text(
