@@ -140,9 +140,7 @@ def build_cross_media_report(
         "matched_terms",
         "review_status",
     ]
-    with (output / "cross-media-candidates.csv").open(
-        "w", newline="", encoding="utf-8"
-    ) as handle:
+    with (output / "cross-media-candidates.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(rows)
