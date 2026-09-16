@@ -30,7 +30,9 @@ def test_classification_is_candidate_only() -> None:
     ids = {match["stressor_id"] for match in matches}
     assert "microplastics" in ids
     assert "atmospheric-deposition" in ids
-    deposition = next(match for match in matches if match["stressor_id"] == "atmospheric-deposition")
+    deposition = next(
+        match for match in matches if match["stressor_id"] == "atmospheric-deposition"
+    )
     assert deposition["matched_terms"] == ["derived:atmospheric-context+deposition"]
 
 
