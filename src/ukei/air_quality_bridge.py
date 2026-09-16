@@ -59,7 +59,11 @@ def build_air_quality_bridge(
     output = Path(output_directory)
     output.mkdir(parents=True, exist_ok=True)
 
-    selected = [record for record in payload["records"] if isinstance(record, dict) and _is_air_quality(record)]
+    selected = [
+        record
+        for record in payload["records"]
+        if isinstance(record, dict) and _is_air_quality(record)
+    ]
     selected.sort(key=lambda record: str(record.get("source_id", "")))
 
     source_fields = [
@@ -80,7 +84,9 @@ def build_air_quality_bridge(
         "content_hash",
         "approval_status",
     ]
-    with (output / "air-quality-sources.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (output / "air-quality-sources.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
         writer = csv.DictWriter(handle, fieldnames=source_fields)
         writer.writeheader()
         for record in selected:
@@ -97,8 +103,12 @@ def build_air_quality_bridge(
                     "licence_status": _licence_status(record.get("licence")),
                     "geographic_scope": record.get("geographic_scope", ""),
                     "update_frequency": record.get("update_frequency", ""),
-                    "formats": "|".join(str(value) for value in record.get("formats", []) or []),
-                    "themes": "|".join(str(value) for value in record.get("themes", []) or []),
+                    "formats": "|".join(
+                        str(value) for value in record.get("formats", []) or []
+                    ),
+                    "themes": "|".join(
+                        str(value) for value in record.get("themes", []) or []
+                    ),
                     "last_verified_at": record.get("last_verified_at", ""),
                     "content_hash": record.get("content_hash", ""),
                     "approval_status": "REVIEW_REQUIRED",
@@ -119,7 +129,9 @@ def build_air_quality_bridge(
         "approval_status",
     ]
     resource_count = 0
-    with (output / "air-quality-resources.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (output / "air-quality-resources.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as handle:
         writer = csv.DictWriter(handle, fieldnames=resource_fields)
         writer.writeheader()
         for record in selected:
@@ -157,7 +169,9 @@ def build_air_quality_bridge(
         "catalogue_sha256": source_sha256,
         "air_quality_source_count": len(selected),
         "air_quality_resource_count": resource_count,
-        "approval_policy": "All exported rows remain REVIEW_REQUIRED until approved by SCC Air Quality.",
+        "approval_policy": (
+            "All exported rows remain REVIEW_REQUIRED until approved by SCC Air Quality."
+        ),
         "canonical_evidence_modified": False,
     }
     (output / "air-quality-manifest.json").write_text(
@@ -170,11 +184,16 @@ def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
     if len(args) not in {2, 3}:
         print(
-            "usage: python -m ukei.air_quality_bridge INPUT_CATALOGUE OUTPUT_DIRECTORY [RELEASE_ID]",
+            (
+                "usage: python -m ukei.air_quality_bridge INPUT_CATALOGUE "
+                "OUTPUT_DIRECTORY [RELEASE_ID]"
+            ),
             file=sys.stderr,
         )
         return 2
-    manifest = build_air_quality_bridge(args[0], args[1], release_id=args[2] if len(args) == 3 else "")
+    manifest = build_air_quality_bridge(
+        args[0], args[1], release_id=args[2] if len(args) == 3 else ""
+    )
     print(json.dumps(manifest, sort_keys=True))
     return 0
 
