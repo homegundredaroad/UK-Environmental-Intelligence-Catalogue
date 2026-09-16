@@ -7,11 +7,13 @@ import json
 import math
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from ukei.normalization import clean_text
 
-PROMPT_VERSION = "ukei-advisory-v1"
+PROMPT_VERSION = "ukei-advisory-v2"
+_OPENAI_CLIENT: Any | None = None
+_GEMINI_CLIENT: Any | None = None
 
 
 def _records(path: str | Path) -> list[dict[str, Any]]:
@@ -28,8 +30,9 @@ def build_ml_report(input_path: str | Path, output_path: str | Path) -> dict[str
         from sklearn.cluster import MiniBatchKMeans
         from sklearn.ensemble import IsolationForest
         from sklearn.feature_extraction.text import TfidfVectorizer
-    except ImportError as exc:  # pragma: no cover - exercised by installation smoke tests
+    except ImportError as exc:  # pragma: no cover
         raise RuntimeError("install the 'intelligence' extra to run ML analysis") from exc
+
     records = _records(input_path)
     if len(records) < 8:
         raise ValueError("at least eight records are required for ML analysis")
@@ -125,15 +128,33 @@ def _validate_ai_payload(payload: object) -> dict[str, Any]:
         payload["review_priority"], int
     ):
         raise ValueError("AI response confidence fields are invalid")
+    if not isinstance(payload["source_type"], str):
+        raise ValueError("AI response source_type is invalid")
     if not 0 <= payload["review_priority"] <= 100:
         raise ValueError("AI review_priority must be between 0 and 100")
     return payload
 
 
-def _openai(prompt: str, model: str) -> tuple[dict[str, Any], str]:
-    from openai import OpenAI
+def _openai_client() -> Any:
+    global _OPENAI_CLIENT
+    if _OPENAI_CLIENT is None:
+        from openai import OpenAI
 
-    response = OpenAI().responses.create(
+        _OPENAI_CLIENT = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    return _OPENAI_CLIENT
+
+
+def _gemini_client() -> Any:
+    global _GEMINI_CLIENT
+    if _GEMINI_CLIENT is None:
+        from google import genai
+
+        _GEMINI_CLIENT = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    return _GEMINI_CLIENT
+
+
+def _openai(prompt: str, model: str) -> tuple[dict[str, Any], str]:
+    response = _openai_client().responses.create(
         model=model,
         reasoning={"effort": "low"},
         input=[
@@ -148,14 +169,24 @@ def _openai(prompt: str, model: str) -> tuple[dict[str, Any], str]:
 
 
 def _gemini(prompt: str, model: str) -> tuple[dict[str, Any], str]:
-    from google import genai
-
-    response = genai.Client(api_key=os.environ["GEMINI_API_KEY"]).models.generate_content(
+    response = _gemini_client().models.generate_content(
         model=model,
         contents=prompt + "\nOutput JSON only.",
         config={"response_mime_type": "application/json"},
     )
     return _validate_ai_payload(json.loads(response.text or "")), model
+
+
+def _classify_with_json_retry(
+    classifier: Callable[[str, str], tuple[dict[str, Any], str]],
+    prompt: str,
+    model: str,
+) -> tuple[dict[str, Any], str]:
+    """Retry once only when a provider returned malformed JSON/schema output."""
+    try:
+        return classifier(prompt, model)
+    except (json.JSONDecodeError, ValueError):
+        return classifier(prompt + "\nYour previous response was invalid. Return exactly the requested JSON schema.", model)
 
 
 def enrich_catalogue(
@@ -170,6 +201,7 @@ def enrich_catalogue(
         raise ValueError("provider must be openai, gemini or both")
     if max_records < 1 or max_records > 500:
         raise ValueError("max_records must be between 1 and 500")
+
     openai_model = os.getenv("OPENAI_MODEL", "").strip()
     gemini_model = os.getenv("GEMINI_MODEL", "").strip()
     records = sorted(
@@ -185,6 +217,7 @@ def enrich_catalogue(
     errors: list[dict[str, str]] = []
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
+
     for record in records:
         prompt = _prompt(record)
         for selected in providers:
@@ -195,9 +228,8 @@ def enrich_catalogue(
             try:
                 if not model or not os.getenv(f"{selected.upper()}_API_KEY"):
                     raise ValueError(f"{selected} API key and model are required")
-                payload, returned_model = (
-                    _openai(prompt, model) if selected == "openai" else _gemini(prompt, model)
-                )
+                classifier = _openai if selected == "openai" else _gemini
+                payload, returned_model = _classify_with_json_retry(classifier, prompt, model)
                 rows.append(
                     {
                         "advisory_only": True,
@@ -235,7 +267,7 @@ def _write_enrichment_report(
         "errors": errors,
         "provider_mode": provider,
         "record_count": record_count,
-        "report_version": 2,
+        "report_version": 3,
         "rows": rows,
         "successful_classifications": len(rows),
     }
