@@ -61,3 +61,29 @@ def test_enrichment_isolates_provider_failures_and_checkpoints(
 def test_ai_payload_rejects_unexpected_schema() -> None:
     with pytest.raises(ValueError, match="unexpected schema"):
         intelligence._validate_ai_payload({"themes": []})
+
+
+def test_json_schema_failure_retries_once() -> None:
+    attempts = 0
+
+    def classifier(prompt: str, model: str) -> tuple[dict[str, object], str]:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise ValueError("bad schema")
+        assert "previous response was invalid" in prompt
+        return (
+            {
+                "themes": ["air quality"],
+                "source_type": "dataset",
+                "review_priority": 25,
+                "review_reasons": [],
+                "uncertainties": [],
+            },
+            model,
+        )
+
+    payload, model = intelligence._classify_with_json_retry(classifier, "prompt", "model")
+    assert attempts == 2
+    assert payload["source_type"] == "dataset"
+    assert model == "model"

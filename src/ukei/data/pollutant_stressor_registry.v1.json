@@ -1,0 +1,132 @@
+{
+  "registry_version": 1,
+  "purpose": "Governed discovery vocabulary for AirQuality-adjacent pollutants and environmental stressors. Entries support discovery and review prioritisation only; they do not confer scientific admissibility or causal attribution.",
+  "entries": [
+    {
+      "id": "nitrogen-dioxide",
+      "canonical_name": "nitrogen dioxide",
+      "synonyms": ["NO2", "nitrogen oxides"],
+      "air_relevance": "DIRECT",
+      "compartments": ["air"],
+      "monitoring_status": "ROUTINE",
+      "evidence_maturity": "ESTABLISHED"
+    },
+    {
+      "id": "particulate-matter",
+      "canonical_name": "particulate matter",
+      "synonyms": ["PM2.5", "PM10", "PM2 5", "particles"],
+      "air_relevance": "DIRECT",
+      "compartments": ["air", "deposition"],
+      "monitoring_status": "ROUTINE",
+      "evidence_maturity": "ESTABLISHED"
+    },
+    {
+      "id": "ultrafine-particles",
+      "canonical_name": "ultrafine particles",
+      "synonyms": ["particle number concentration", "particle number", "PNC", "particle size distribution"],
+      "air_relevance": "DIRECT",
+      "compartments": ["air"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    },
+    {
+      "id": "black-carbon",
+      "canonical_name": "black carbon",
+      "synonyms": ["elemental carbon", "soot"],
+      "air_relevance": "DIRECT",
+      "compartments": ["air", "deposition", "soil", "sediment"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    },
+    {
+      "id": "ammonia-ammonium",
+      "canonical_name": "ammonia and ammonium",
+      "synonyms": ["ammonia", "NH3", "ammonium", "NH4", "ammonium aerosol"],
+      "air_relevance": "DIRECT_CROSS_MEDIA",
+      "compartments": ["air", "precipitation", "soil", "water", "deposition"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    },
+    {
+      "id": "acid-gas-aerosol",
+      "canonical_name": "acid gases and aerosols",
+      "synonyms": ["acid gas", "acid aerosol", "sulphate", "nitrate aerosol", "chloride aerosol"],
+      "air_relevance": "DIRECT_CROSS_MEDIA",
+      "compartments": ["air", "precipitation", "soil", "water", "deposition"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    },
+    {
+      "id": "volatile-organic-compounds",
+      "canonical_name": "volatile organic compounds",
+      "synonyms": ["VOC", "VOCs", "hydrocarbons", "benzene", "1,3-butadiene"],
+      "air_relevance": "DIRECT",
+      "compartments": ["air"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    },
+    {
+      "id": "polycyclic-aromatic-hydrocarbons",
+      "canonical_name": "polycyclic aromatic hydrocarbons",
+      "synonyms": ["PAH", "PAHs", "benzo[a]pyrene", "benzo a pyrene"],
+      "air_relevance": "DIRECT_CROSS_MEDIA",
+      "compartments": ["air", "soil", "water", "sediment", "biota"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    },
+    {
+      "id": "heavy-metals",
+      "canonical_name": "heavy metals",
+      "synonyms": ["arsenic", "cadmium", "nickel", "lead", "chromium", "copper", "zinc"],
+      "air_relevance": "DIRECT_CROSS_MEDIA",
+      "compartments": ["air", "deposition", "soil", "water", "sediment", "biota"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    },
+    {
+      "id": "mercury",
+      "canonical_name": "mercury",
+      "synonyms": ["Hg", "elemental mercury", "mercury deposition"],
+      "air_relevance": "DIRECT_CROSS_MEDIA",
+      "compartments": ["air", "precipitation", "soil", "water", "sediment", "biota", "deposition"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    },
+    {
+      "id": "pfas",
+      "canonical_name": "per- and polyfluoroalkyl substances",
+      "synonyms": ["PFAS", "PFOA", "PFOS", "perfluoroalkyl", "polyfluoroalkyl"],
+      "air_relevance": "EMERGING_CROSS_MEDIA",
+      "compartments": ["air", "deposition", "soil", "water", "sediment", "biota"],
+      "monitoring_status": "EMERGING",
+      "evidence_maturity": "DEVELOPING"
+    },
+    {
+      "id": "microplastics",
+      "canonical_name": "microplastics",
+      "synonyms": ["microplastic", "microfibres", "microfibers", "plastic particles", "atmospheric microplastics"],
+      "air_relevance": "EMERGING_CROSS_MEDIA",
+      "compartments": ["air", "deposition", "soil", "water", "sediment", "biota"],
+      "monitoring_status": "EMERGING",
+      "evidence_maturity": "DEVELOPING"
+    },
+    {
+      "id": "pesticides",
+      "canonical_name": "pesticides",
+      "synonyms": ["pesticide", "herbicide", "insecticide", "fungicide", "pesticide drift"],
+      "air_relevance": "ASSOCIATED_CROSS_MEDIA",
+      "compartments": ["air", "soil", "water", "sediment", "biota"],
+      "monitoring_status": "CROSS_MEDIA",
+      "evidence_maturity": "VARIABLE"
+    },
+    {
+      "id": "atmospheric-deposition",
+      "canonical_name": "atmospheric deposition",
+      "synonyms": ["wet deposition", "dry deposition", "rainwater chemistry", "precipitation chemistry", "deposition flux"],
+      "air_relevance": "PROCESS_LINK",
+      "compartments": ["air", "precipitation", "soil", "water", "deposition"],
+      "monitoring_status": "SPECIALIST",
+      "evidence_maturity": "ESTABLISHED_SPECIALIST"
+    }
+  ]
+}
