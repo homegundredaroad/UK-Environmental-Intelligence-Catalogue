@@ -2,10 +2,12 @@ import gzip
 import json
 from pathlib import Path
 
+from pytest import CaptureFixture
+
 from ukei.scc_handoff import _redact_url, _sanitise, build_handoff, main
 
 
-def test_redact_url_leaves_non_url_and_plain_url_unchanged():
+def test_redact_url_leaves_non_url_and_plain_url_unchanged() -> None:
     assert _redact_url("plain text") == ("plain text", 0)
     assert _redact_url("https://example.test/data?x=1") == (
         "https://example.test/data?x=1",
@@ -13,12 +15,12 @@ def test_redact_url_leaves_non_url_and_plain_url_unchanged():
     )
 
 
-def test_redact_url_handles_malformed_port_without_leaking():
+def test_redact_url_handles_malformed_port_without_leaking() -> None:
     value = "https://example.test:notaport/data?token=secret"
     assert _redact_url(value) == (value, 0)
 
 
-def test_sanitise_nested_values():
+def test_sanitise_nested_values() -> None:
     value = {
         "items": [
             "https://example.test/a?token=abc",
@@ -33,7 +35,7 @@ def test_sanitise_nested_values():
     assert cleaned["items"][2] == 42
 
 
-def test_handoff_redacts_sensitive_urls(tmp_path: Path):
+def test_handoff_redacts_sensitive_urls(tmp_path: Path) -> None:
     catalogue = {
         "records": [
             {
@@ -56,7 +58,7 @@ def test_handoff_redacts_sensitive_urls(tmp_path: Path):
     assert receipt["governance"]["scientific_admissibility_conferred"] is False
 
 
-def test_handoff_copies_validation_and_run_receipt(tmp_path: Path):
+def test_handoff_copies_validation_and_run_receipt(tmp_path: Path) -> None:
     catalogue = {"schema_version": "1", "records": []}
     validation = {"sources": [{"url": "https://example.test/check?password=secret"}]}
     run_receipt = {"receipt_version": 2, "review_status": "REVIEW_REQUIRED"}
@@ -91,7 +93,7 @@ def test_handoff_copies_validation_and_run_receipt(tmp_path: Path):
     assert "REDACTED" in validation_raw
 
 
-def test_main_builds_receipt(tmp_path: Path, capsys):
+def test_main_builds_receipt(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
     source = tmp_path / "catalogue.json"
     source.write_text(json.dumps({"records": []}), encoding="utf-8")
     output = tmp_path / "out"
