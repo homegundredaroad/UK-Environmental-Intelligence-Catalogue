@@ -1,4 +1,5 @@
 """Publish a sanitised, governed SCC Air Quality handoff snapshot."""
+
 from __future__ import annotations
 
 import argparse
@@ -138,7 +139,7 @@ def build_handoff(
             encoding="utf-8",
         )
 
-    record_count = None
+    record_count: int | None = None
     if isinstance(catalogue, dict):
         records = catalogue.get("records", [])
         if isinstance(records, list):
