@@ -15,9 +15,11 @@ def test_redact_url_leaves_non_url_and_plain_url_unchanged() -> None:
     )
 
 
-def test_redact_url_handles_malformed_port_without_leaking() -> None:
+def test_redact_url_still_redacts_token_on_malformed_port() -> None:
     value = "https://example.test:notaport/data?token=secret"
-    assert _redact_url(value) == (value, 0)
+    cleaned, count = _redact_url(value)
+    assert cleaned == "https://example.test:notaport/data?token=REDACTED"
+    assert count == 1
 
 
 def test_sanitise_nested_values() -> None:
