@@ -1,0 +1,159 @@
+name: Publish SCC Air Quality Handoff
+
+on:
+  workflow_run:
+    workflows: ["Focused AirQuality Intelligence"]
+    types: [completed]
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/scc-airquality-handoff.yml"
+      - "src/ukei/scc_handoff.py"
+      - "tests/test_scc_handoff.py"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: scc-airquality-handoff
+  cancel-in-progress: true
+
+jobs:
+  publish-handoff:
+    name: Build and publish sanitised discovery handoff
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out catalogue
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package
+        run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Resolve governed focused run
+        id: run
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            run_id="${{ github.event.workflow_run.id }}"
+          else
+            run_id=$(gh run list \
+              --repo "$GITHUB_REPOSITORY" \
+              --workflow focused-air-quality-intelligence.yml \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId')
+          fi
+          if [ -z "$run_id" ] || [ "$run_id" = "null" ]; then
+            echo "No successful Focused AirQuality Intelligence run found." >&2
+            exit 1
+          fi
+          artifact_json=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/artifacts")
+          artifact_id=$(printf '%s' "$artifact_json" | jq -r '.artifacts[] | select(.name=="ukei-focused-air-quality-intelligence" and (.expired|not)) | .id' | head -n1)
+          artifact_digest=$(printf '%s' "$artifact_json" | jq -r '.artifacts[] | select(.name=="ukei-focused-air-quality-intelligence" and (.expired|not)) | .digest // ""' | head -n1)
+          if [ -z "$artifact_id" ] || [ "$artifact_id" = "null" ]; then
+            echo "Focused Air Quality artifact not found for run $run_id." >&2
+            exit 1
+          fi
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+          echo "artifact_id=$artifact_id" >> "$GITHUB_OUTPUT"
+          echo "artifact_digest=$artifact_digest" >> "$GITHUB_OUTPUT"
+
+      - name: Download governed focused artifact
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p handoff-input
+          gh run download "${{ steps.run.outputs.run_id }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name ukei-focused-air-quality-intelligence \
+            --dir handoff-input
+          test -f handoff-input/focused-catalogue.json
+          test -f handoff-input/run-receipt.json
+
+      - name: Build sanitised SCC Air Quality handoff
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(
+            --catalogue handoff-input/focused-catalogue.json
+            --run-receipt handoff-input/run-receipt.json
+            --output handoff/sccairquality
+            --upstream-run-id "${{ steps.run.outputs.run_id }}"
+            --upstream-artifact-id "${{ steps.run.outputs.artifact_id }}"
+            --upstream-artifact-digest "${{ steps.run.outputs.artifact_digest }}"
+          )
+          if [ -f handoff-input/focused-validation-report.json ]; then
+            args+=(--validation handoff-input/focused-validation-report.json)
+          fi
+          python -m ukei.scc_handoff "${args[@]}"
+
+      - name: Verify no unredacted sensitive URL values remain
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import gzip
+          import json
+          import re
+          from pathlib import Path
+
+          receipt = json.loads(Path('handoff/sccairquality/handoff-receipt.json').read_text())
+          assert receipt['governance']['scientific_admissibility_conferred'] is False
+          assert receipt['security']['raw_payload_published'] is False
+          raw = gzip.decompress(Path('handoff/sccairquality/focused-catalogue.json.gz').read_bytes()).decode('utf-8')
+          bad = re.compile(r'(?i)(password|passwd|pwd|token|access_token|apikey|api_key|client_secret|authorization)=((?!REDACTED)[^&"\\s]+)')
+          if bad.search(raw):
+              raise SystemExit('Sensitive URL value survived sanitisation')
+          print(f"PASS: sanitised handoff; {receipt['security']['sensitive_url_values_redacted']} sensitive URL values redacted.")
+          PY
+
+      - name: Commit handoff snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f handoff/sccairquality
+          if git diff --cached --quiet; then
+            echo "No handoff changes to publish."
+            exit 0
+          fi
+          git commit -m "chore: refresh SCC Air Quality handoff [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Publish handoff summary
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          receipt = json.loads(Path('handoff/sccairquality/handoff-receipt.json').read_text())
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as fh:
+              fh.write('# SCC Air Quality handoff\n\n')
+              fh.write(f"Upstream focused run: **{receipt['upstream_run_id']}**\n\n")
+              fh.write(f"Catalogue records: **{receipt['catalogue']['record_count']}**\n\n")
+              fh.write(f"Sensitive URL values redacted: **{receipt['security']['sensitive_url_values_redacted']}**\n\n")
+              fh.write('Scientific admissibility conferred: **no**\n\n')
+              fh.write('Production change authorised: **no**\n')
+          PY
