@@ -1,0 +1,31 @@
+{
+  "catalogue": {
+    "compressed_bytes": 334102,
+    "handoff_sha256": "cb2e2037ac95059b7876c0b9edc5e06b843fd0eccac6857ea471adbe9968d4c2",
+    "record_count": 587,
+    "source_sha256": "8f1e3cff363f5d57ee03238e062b3bb1877f059ac9672a93a06dc4334636d7e7"
+  },
+  "generated_at_utc": "2026-09-26T12:26:22+00:00",
+  "governance": {
+    "claim_boundary": "This handoff preserves discovery intelligence and run identity only. SCC Air Quality must independently reacquire and validate original-provider evidence before scientific use.",
+    "production_change_authorised": false,
+    "review_status": "REVIEW_REQUIRED",
+    "scientific_admissibility_conferred": false
+  },
+  "purpose": "Sanitised discovery handoff to SCC Air Quality test; not scientific evidence.",
+  "schema": "ukei_scc_air_quality_handoff_v1",
+  "security": {
+    "catalogue_redactions": 8,
+    "raw_payload_published": false,
+    "sensitive_url_values_redacted": 8,
+    "validation_redactions": 0
+  },
+  "upstream_artifact_digest": "sha256:f4c1ab076861d79a695d43b68f1ac7ba72a783d7389f63a914dba4b786913036",
+  "upstream_artifact_id": "10657029963",
+  "upstream_run_id": "35639639663",
+  "validation": {
+    "compressed_bytes": 19359,
+    "handoff_sha256": "49117ad62fc65d519c7cb90916a7f0e6673ddc759428f85ede92fbd0a03f9148",
+    "source_sha256": "5f0b2f858b2f3214cab9141585436c4d0e81d132de7adeccf2128d1698245424"
+  }
+}
