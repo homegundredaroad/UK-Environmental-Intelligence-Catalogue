@@ -6,19 +6,29 @@ import gzip
 import hashlib
 import json
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 SCHEMA = "ukei_scc_air_quality_handoff_v1"
 SENSITIVE_QUERY_KEYS = {
-    "password", "passwd", "pwd", "token", "access_token", "apikey", "api_key",
-    "key", "secret", "client_secret", "authorization", "auth",
+    "password",
+    "passwd",
+    "pwd",
+    "token",
+    "access_token",
+    "apikey",
+    "api_key",
+    "key",
+    "secret",
+    "client_secret",
+    "authorization",
+    "auth",
 }
 
 
 def _utc_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
 
 
 def _sha256_bytes(data: bytes) -> str:
@@ -31,7 +41,7 @@ def _redact_url(value: str) -> tuple[str, int]:
     try:
         parts = urllib.parse.urlsplit(value)
         count = 0
-        pairs = []
+        pairs: list[tuple[str, str]] = []
         for key, item in urllib.parse.parse_qsl(parts.query, keep_blank_values=True):
             if key.casefold() in SENSITIVE_QUERY_KEYS and item:
                 item = "REDACTED"
@@ -43,14 +53,17 @@ def _redact_url(value: str) -> tuple[str, int]:
                 host = f"{host}:{parts.port}"
             parts = parts._replace(netloc=host)
             count += 1
-        return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(pairs), parts.fragment)), count
-    except Exception:
+        cleaned = urllib.parse.urlunsplit(
+            (parts.scheme, parts.netloc, parts.path, urllib.parse.urlencode(pairs), parts.fragment)
+        )
+        return cleaned, count
+    except ValueError:
         return value, 0
 
 
 def _sanitise(value: Any) -> tuple[Any, int]:
     if isinstance(value, dict):
-        output = {}
+        output: dict[Any, Any] = {}
         count = 0
         for key, item in value.items():
             cleaned, n = _sanitise(item)
@@ -58,13 +71,13 @@ def _sanitise(value: Any) -> tuple[Any, int]:
             count += n
         return output, count
     if isinstance(value, list):
-        output = []
+        output_list: list[Any] = []
         count = 0
         for item in value:
             cleaned, n = _sanitise(item)
-            output.append(cleaned)
+            output_list.append(cleaned)
             count += n
-        return output, count
+        return output_list, count
     if isinstance(value, str):
         return _redact_url(value)
     return value, 0
@@ -100,7 +113,7 @@ def build_handoff(
     cat_out = output / "focused-catalogue.json.gz"
     cat_sha, cat_size = _write_gzip_json(cat_out, safe_catalogue)
 
-    validation_meta = None
+    validation_meta: dict[str, Any] | None = None
     validation_redactions = 0
     if validation_path and Path(validation_path).exists():
         validation_path = Path(validation_path)
@@ -114,13 +127,24 @@ def build_handoff(
             "compressed_bytes": val_size,
         }
 
-    run_receipt = _load(Path(run_receipt_path)) if run_receipt_path and Path(run_receipt_path).exists() else None
+    run_receipt = (
+        _load(Path(run_receipt_path))
+        if run_receipt_path and Path(run_receipt_path).exists()
+        else None
+    )
     if run_receipt is not None:
         (output / "run-receipt.json").write_text(
-            json.dumps(run_receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            json.dumps(run_receipt, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
         )
 
-    receipt = {
+    record_count = None
+    if isinstance(catalogue, dict):
+        records = catalogue.get("records", [])
+        if isinstance(records, list):
+            record_count = len(records)
+
+    receipt: dict[str, Any] = {
         "schema": SCHEMA,
         "generated_at_utc": _utc_now(),
         "purpose": "Sanitised discovery handoff to SCC Air Quality test; not scientific evidence.",
@@ -128,7 +152,7 @@ def build_handoff(
         "upstream_artifact_id": upstream_artifact_id or None,
         "upstream_artifact_digest": upstream_artifact_digest or None,
         "catalogue": {
-            "record_count": len(catalogue.get("records", [])) if isinstance(catalogue, dict) else None,
+            "record_count": record_count,
             "source_sha256": _sha256_bytes(catalogue_path.read_bytes()),
             "handoff_sha256": cat_sha,
             "compressed_bytes": cat_size,
@@ -144,25 +168,30 @@ def build_handoff(
             "scientific_admissibility_conferred": False,
             "review_status": "REVIEW_REQUIRED",
             "production_change_authorised": False,
-            "claim_boundary": "This handoff preserves discovery intelligence and run identity only. SCC Air Quality must independently reacquire and validate original-provider evidence before scientific use.",
+            "claim_boundary": (
+                "This handoff preserves discovery intelligence and run identity only. "
+                "SCC Air Quality must independently reacquire and validate original-provider "
+                "evidence before scientific use."
+            ),
         },
     }
     (output / "handoff-receipt.json").write_text(
-        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
     return receipt
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser()
-    p.add_argument("--catalogue", required=True)
-    p.add_argument("--validation")
-    p.add_argument("--run-receipt")
-    p.add_argument("--output", required=True)
-    p.add_argument("--upstream-run-id", default="")
-    p.add_argument("--upstream-artifact-id", default="")
-    p.add_argument("--upstream-artifact-digest", default="")
-    args = p.parse_args(argv)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--catalogue", required=True)
+    parser.add_argument("--validation")
+    parser.add_argument("--run-receipt")
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--upstream-run-id", default="")
+    parser.add_argument("--upstream-artifact-id", default="")
+    parser.add_argument("--upstream-artifact-digest", default="")
+    args = parser.parse_args(argv)
     receipt = build_handoff(
         args.catalogue,
         args.output,
