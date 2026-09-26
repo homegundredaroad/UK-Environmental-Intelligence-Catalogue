@@ -47,9 +47,7 @@ def test_handoff_redacts_sensitive_urls(tmp_path: Path):
     source.write_text(json.dumps(catalogue), encoding="utf-8")
     receipt = build_handoff(source, tmp_path / "out", upstream_run_id="123")
     assert receipt["security"]["sensitive_url_values_redacted"] == 3
-    raw = gzip.decompress(
-        (tmp_path / "out" / "focused-catalogue.json.gz").read_bytes()
-    ).decode()
+    raw = gzip.decompress((tmp_path / "out" / "focused-catalogue.json.gz").read_bytes()).decode()
     assert "secret" not in raw
     assert "token=abc" not in raw
     assert "u:p@" not in raw
@@ -60,9 +58,7 @@ def test_handoff_redacts_sensitive_urls(tmp_path: Path):
 
 def test_handoff_copies_validation_and_run_receipt(tmp_path: Path):
     catalogue = {"schema_version": "1", "records": []}
-    validation = {
-        "sources": [{"url": "https://example.test/check?password=secret"}]
-    }
+    validation = {"sources": [{"url": "https://example.test/check?password=secret"}]}
     run_receipt = {"receipt_version": 2, "review_status": "REVIEW_REQUIRED"}
     source = tmp_path / "catalogue.json"
     validation_path = tmp_path / "validation.json"
