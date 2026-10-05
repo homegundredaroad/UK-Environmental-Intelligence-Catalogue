@@ -9,6 +9,7 @@ import pytest
 from ukei.harvestability import (
     _authentication,
     _dataset_key,
+    _has_air_context,
     _load_json,
     _load_relevance_csv,
     _machine_readable,
@@ -64,6 +65,21 @@ def _catalogue() -> dict[str, Any]:
                     }
                 ],
             },
+            {
+                "source_id": "four",
+                "publisher": "Agency C",
+                "title": "River Water Quality Monitoring - Ammonia",
+                "geographic_scope": "Town C",
+                "licence": "UK Open Government Licence (OGL)",
+                "url": "https://catalogue.example/dataset/4",
+                "resources": [
+                    {
+                        "resource_id": "json",
+                        "url": "https://data.example/river.json",
+                        "format": "JSON",
+                    }
+                ],
+            },
         ],
     }
 
@@ -72,7 +88,8 @@ def _write_relevance(path: Path) -> None:
     path.write_text(
         "source_id,stressor_id,air_relevance,matched_terms\n"
         "one,nitrogen-dioxide,DIRECT,NO2\n"
-        "two,nitrogen-dioxide,DIRECT,NO2\n",
+        "two,nitrogen-dioxide,DIRECT,NO2\n"
+        "four,ammonia-ammonium,DIRECT_CROSS_MEDIA,ammonia\n",
         encoding="utf-8",
     )
 
@@ -94,6 +111,10 @@ def test_helpers_cover_auth_machine_and_validation(tmp_path: Path) -> None:
     record = _catalogue()["records"][0]
     assert isinstance(record, dict)
     assert _dataset_key(record) == _dataset_key(dict(record))
+    assert _has_air_context(record)
+    assert not _has_air_context(
+        {"title": "River Water Quality Monitoring - Ammonia", "themes": ["water quality"]}
+    )
     assert _validation_index(None) == {}
     assert _load_relevance_csv(None) == {}
     assert _validation_index({"sources": "bad"}) == {}
@@ -139,13 +160,14 @@ def test_manifest_deduplicates_selects_resource_and_blocks_redacted_probe(tmp_pa
         timeout_seconds=4.0,
         probe_function=probe,
     )
-    assert receipt["input_record_count"] == 3
-    assert receipt["deduplicated_dataset_count"] == 2
+    assert receipt["input_record_count"] == 4
+    assert receipt["deduplicated_dataset_count"] == 3
     assert receipt["duplicate_records_collapsed"] == 1
     assert receipt["live_probes_performed"] == 1
     assert calls == ["https://data.example/air.csv"]
     assert receipt["blocked_or_redacted_auth_count"] == 1
-    assert receipt["relevant_dataset_count"] == 1
+    assert receipt["relevant_dataset_count"] == 2
+    assert receipt["air_context_dataset_count"] == 1
     assert receipt["candidate_for_test_count"] == 1
     assert receipt["governance"]["scientific_admissibility_conferred"] is False
 
@@ -159,6 +181,11 @@ def test_manifest_deduplicates_selects_resource_and_blocks_redacted_probe(tmp_pa
     three = next(row for row in rows if row["provider"] == "Council B")
     assert three["authentication"] == "redacted_or_required"
     assert three["sccaq_status"] == "DISCOVERED_ONLY"
+    four = next(row for row in rows if row["provider"] == "Agency C")
+    assert four["relevance_status"] == "MATCHED"
+    assert four["air_context"] == "no"
+    assert four["sccaq_status"] == "DISCOVERED_ONLY"
+    assert "no explicit air-context evidence" in four["reason"]
     assert (tmp_path / "out" / "harvestability-evidence.json").exists()
     assert (tmp_path / "out" / "harvestability-receipt.json").exists()
 
