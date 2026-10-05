@@ -16,12 +16,35 @@ from urllib.parse import parse_qsl, urlparse
 
 SCHEMA = "ukei_scc_air_quality_harvestability_v1"
 _MACHINE_FORMATS = {
-    "api", "atom", "csv", "geojson", "geopackage", "gpkg", "json", "kml",
-    "netcdf", "rdf", "rss", "shp", "tsv", "wfs", "wms", "xls", "xlsx", "xml", "zip",
+    "api",
+    "atom",
+    "csv",
+    "geojson",
+    "geopackage",
+    "gpkg",
+    "json",
+    "kml",
+    "netcdf",
+    "rdf",
+    "rss",
+    "shp",
+    "tsv",
+    "wfs",
+    "wms",
+    "xls",
+    "xlsx",
+    "xml",
+    "zip",
 }
 _MACHINE_MIME_MARKERS = (
-    "application/json", "application/geo+json", "application/xml", "text/csv", "text/xml",
-    "application/vnd.google-earth.kml", "application/zip", "application/x-netcdf",
+    "application/json",
+    "application/geo+json",
+    "application/xml",
+    "text/csv",
+    "text/xml",
+    "application/vnd.google-earth.kml",
+    "application/zip",
+    "application/x-netcdf",
 )
 _AUTH_KEYS = {
     "access_token",
@@ -309,8 +332,10 @@ def build_harvestability_manifest(
         group_hash = hashlib.sha256(
             json.dumps(members, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
-        access_type = "machine_service" if machine else (
-            "catalogue_landing_page" if selected.get("kind") == "landing_page" else "unknown"
+        access_type = (
+            "machine_service"
+            if machine
+            else ("catalogue_landing_page" if selected.get("kind") == "landing_page" else "unknown")
         )
         reasons = []
         if relevance_status != "MATCHED":
@@ -361,14 +386,39 @@ def build_harvestability_manifest(
             {"dataset_key": dataset_key, "selected_endpoint": selected, "members": members}
         )
 
-    fields = list(rows[0]) if rows else [
-        "dataset_key", "source_id", "provider", "dataset", "canonical_url", "access_type",
-        "geography", "pollutants_variables", "temporal_resolution", "relevance_status",
-        "stressor_ids", "air_relevance", "authentication", "licence",
-        "reachable", "machine_readable", "schema_verified", "provider_verified", "last_probe_utc",
-        "probe_outcome", "content_type", "content_hash", "duplicate_count", "member_source_ids",
-        "vvip_status", "sccaq_status", "reason",
-    ]
+    fields = (
+        list(rows[0])
+        if rows
+        else [
+            "dataset_key",
+            "source_id",
+            "provider",
+            "dataset",
+            "canonical_url",
+            "access_type",
+            "geography",
+            "pollutants_variables",
+            "temporal_resolution",
+            "relevance_status",
+            "stressor_ids",
+            "air_relevance",
+            "authentication",
+            "licence",
+            "reachable",
+            "machine_readable",
+            "schema_verified",
+            "provider_verified",
+            "last_probe_utc",
+            "probe_outcome",
+            "content_type",
+            "content_hash",
+            "duplicate_count",
+            "member_source_ids",
+            "vvip_status",
+            "sccaq_status",
+            "reason",
+        ]
+    )
     with (output / "harvestability-manifest.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
