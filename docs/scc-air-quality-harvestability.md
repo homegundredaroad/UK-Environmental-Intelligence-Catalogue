@@ -22,10 +22,15 @@ credential-like query parameters, embedded credentials, or the `REDACTED` marker
 A row can become `CANDIDATE_FOR_TEST` only when all of the following are true:
 
 - the dataset has a governed pollutant/stressor relevance match;
+- its title, description or themes contain explicit air-context evidence (for example air quality,
+  atmospheric monitoring, diffusion tubes or a named air-pollutant concentration);
 - a machine-readable endpoint is identified;
 - the selected endpoint has a successful reachability observation;
 - licence metadata is explicit enough for review; and
 - no credential-bearing access pattern is present.
+
+A cross-media pollutant match on its own is not enough. Water, soil, sediment and other environmental
+datasets stay review-only unless the record also carries explicit air-context evidence.
 
 Even then, `vvip_status` remains `REVIEW_REQUIRED`, `schema_verified` remains `no`, and
 `provider_verified` remains `no` until downstream review supplies stronger evidence.
