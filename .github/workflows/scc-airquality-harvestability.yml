@@ -1,0 +1,226 @@
+name: Qualify SCC Air Quality Harvestability
+
+on:
+  workflow_run:
+    workflows: ["Publish SCC Air Quality Handoff"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      live_probe:
+        description: Probe a bounded set of relevant machine-readable endpoints
+        required: false
+        default: true
+        type: boolean
+      probe_limit:
+        description: Maximum live endpoint probes (0-250)
+        required: false
+        default: 120
+        type: number
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/scc-airquality-harvestability.yml"
+      - "src/ukei/harvestability.py"
+      - "tests/test_harvestability.py"
+      - "docs/scc-air-quality-harvestability.md"
+
+permissions:
+  actions: read
+  contents: write
+
+concurrency:
+  group: scc-airquality-harvestability
+  cancel-in-progress: true
+
+jobs:
+  qualify:
+    name: Build governed harvestability qualification
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      UKEI_HTTP_TIMEOUT_SECONDS: "6"
+
+    steps:
+      - name: Check out catalogue
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package
+        run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Prepare sanitised handoff input
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f handoff/sccairquality/focused-catalogue.json.gz
+          mkdir -p "${RUNNER_TEMP}/harvestability-input"
+          gzip -dc handoff/sccairquality/focused-catalogue.json.gz \
+            > "${RUNNER_TEMP}/harvestability-input/catalogue.json"
+          if [ -f handoff/sccairquality/focused-validation-report.json.gz ]; then
+            gzip -dc handoff/sccairquality/focused-validation-report.json.gz \
+              > "${RUNNER_TEMP}/harvestability-input/validation.json"
+          fi
+
+      - name: Rebuild governed pollutant relevance evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import os
+          from pathlib import Path
+          from ukei.cross_media import build_cross_media_report
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "harvestability-input"
+          build_cross_media_report(root / "catalogue.json", root / "cross-media")
+          PY
+
+      - name: Resolve bounded probe policy
+        id: policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          live_probe="true"
+          probe_limit="120"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            live_probe="${{ inputs.live_probe }}"
+            probe_limit="${{ inputs.probe_limit }}"
+          fi
+          if [ "${probe_limit}" -lt 0 ] || [ "${probe_limit}" -gt 250 ]; then
+            echo "probe_limit must be between 0 and 250" >&2
+            exit 2
+          fi
+          echo "live_probe=${live_probe}" >> "$GITHUB_OUTPUT"
+          echo "probe_limit=${probe_limit}" >> "$GITHUB_OUTPUT"
+
+      - name: Build harvestability manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="${RUNNER_TEMP}/harvestability-input"
+          out="${RUNNER_TEMP}/harvestability-output"
+          args=(
+            "${root}/catalogue.json"
+            "${out}"
+            --relevance-csv "${root}/cross-media/cross-media-candidates.csv"
+            --probe-limit "${{ steps.policy.outputs.probe_limit }}"
+            --timeout "${UKEI_HTTP_TIMEOUT_SECONDS}"
+          )
+          if [ -f "${root}/validation.json" ]; then
+            args+=(--validation "${root}/validation.json")
+          fi
+          if [ "${{ steps.policy.outputs.live_probe }}" = "true" ] \
+             && [ "${{ steps.policy.outputs.probe_limit }}" -gt 0 ]; then
+            args+=(--probe)
+          fi
+          python -m ukei.harvestability "${args[@]}"
+
+      - name: Verify SCC and VVIP claim boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv
+          import json
+          import os
+          import re
+          from pathlib import Path
+
+          out = Path(os.environ["RUNNER_TEMP"]) / "harvestability-output"
+          receipt = json.loads((out / "harvestability-receipt.json").read_text())
+          governance = receipt["governance"]
+          assert governance["review_status"] == "REVIEW_REQUIRED"
+          assert governance["scientific_admissibility_conferred"] is False
+          assert governance["production_change_authorised"] is False
+
+          bad = re.compile(
+              r"(?i)(password|passwd|pwd|token|access_token|apikey|api_key|"
+              r"client_secret|authorization)=((?!REDACTED)[^&\"\\s]+)"
+          )
+          with (out / "harvestability-manifest.csv").open(newline="", encoding="utf-8") as fh:
+              rows = list(csv.DictReader(fh))
+          for row in rows:
+              if bad.search(row.get("canonical_url", "")):
+                  raise SystemExit("Unredacted credential-like query value in manifest")
+              if row.get("sccaq_status") not in {"DISCOVERED_ONLY", "CANDIDATE_FOR_TEST"}:
+                  raise SystemExit("Unexpected SCC Air Quality status")
+          print(
+              "PASS: governed harvestability output; "
+              f"{receipt['candidate_for_test_count']} candidates for independent test review."
+          )
+          PY
+
+      - name: Publish lean repository snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="${RUNNER_TEMP}/harvestability-output"
+          dest="handoff/sccairquality/harvestability"
+          mkdir -p "${dest}"
+          cp "${out}/harvestability-manifest.csv" "${dest}/harvestability-manifest.csv"
+          cp "${out}/harvestability-receipt.json" "${dest}/harvestability-receipt.json"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "${dest}/harvestability-manifest.csv" "${dest}/harvestability-receipt.json"
+          if git diff --cached --quiet; then
+            echo "No harvestability changes to publish."
+            exit 0
+          fi
+          git commit -m "chore: refresh SCC Air Quality harvestability [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+      - name: Retain full qualification evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: scc-air-quality-harvestability
+          path: |
+            ${{ runner.temp }}/harvestability-output/
+            ${{ runner.temp }}/harvestability-input/cross-media/
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Publish qualification summary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt_path = (
+              Path(os.environ["RUNNER_TEMP"])
+              / "harvestability-output"
+              / "harvestability-receipt.json"
+          )
+          if not receipt_path.exists():
+              raise SystemExit(0)
+          receipt = json.loads(receipt_path.read_text())
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("# SCC Air Quality harvestability\n\n")
+              fh.write(f"Discovery records: **{receipt['input_record_count']}**\n\n")
+              fh.write(
+                  f"Deduplicated datasets: **{receipt['deduplicated_dataset_count']}**\n\n"
+              )
+              fh.write(f"Relevant datasets: **{receipt['relevant_dataset_count']}**\n\n")
+              fh.write(
+                  f"Machine-readable candidates: **{receipt['machine_readable_count']}**\n\n"
+              )
+              fh.write(f"Live probes performed: **{receipt['live_probes_performed']}**\n\n")
+              fh.write(
+                  "Candidates for independent SCC Air Quality test: "
+                  f"**{receipt['candidate_for_test_count']}**\n\n"
+              )
+              fh.write("Scientific admissibility conferred: **no**\n\n")
+              fh.write("Production change authorised: **no**\n")
+          PY
