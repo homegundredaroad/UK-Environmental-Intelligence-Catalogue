@@ -2,6 +2,7 @@ import csv
 import gzip
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -18,7 +19,7 @@ from ukei.harvestability import (
 )
 
 
-def _catalogue() -> dict[str, object]:
+def _catalogue() -> dict[str, Any]:
     return {
         "schema_version": 2,
         "records": [
@@ -164,7 +165,7 @@ def test_manifest_deduplicates_selects_resource_and_blocks_redacted_probe(tmp_pa
 
 def test_existing_validation_is_used_without_live_probe(tmp_path: Path) -> None:
     payload = _catalogue()
-    payload["records"] = [payload["records"][0]]  # type: ignore[index]
+    payload["records"] = [payload["records"][0]]
     source = tmp_path / "catalogue.json"
     validation = tmp_path / "validation.json"
     source.write_text(json.dumps(payload), encoding="utf-8")
