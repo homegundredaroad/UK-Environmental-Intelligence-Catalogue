@@ -97,9 +97,7 @@ def test_helpers_cover_auth_machine_and_validation(tmp_path: Path) -> None:
     assert _load_relevance_csv(None) == {}
     assert _validation_index({"sources": "bad"}) == {}
     payload = {
-        "sources": [
-            {"source_id": "one", "results": [{"check_name": "live.url", "details": {}}]}
-        ]
+        "sources": [{"source_id": "one", "results": [{"check_name": "live.url", "details": {}}]}]
     }
     assert ("one", "") in _validation_index(payload)
     plain = tmp_path / "plain.json"
