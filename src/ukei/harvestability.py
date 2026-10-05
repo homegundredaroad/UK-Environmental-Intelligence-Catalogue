@@ -46,6 +46,13 @@ _MACHINE_MIME_MARKERS = (
     "application/zip",
     "application/x-netcdf",
 )
+_AIR_CONTEXT_PATTERN = re.compile(
+    r"\b(air quality|air pollution|ambient air|air monitor(?:ing)?|airborne|"
+    r"atmospher(?:e|ic|ically)|diffusion tubes?|nitrogen dioxide concentration|"
+    r"no2 concentration|particulate matter|pm2\.?5|pm10|black carbon|elemental carbon|"
+    r"ultrafine particles?|particle number concentration|aerosols?)\b",
+    re.IGNORECASE,
+)
 _AUTH_KEYS = {
     "access_token",
     "api_key",
@@ -91,6 +98,17 @@ def _dataset_key(record: Mapping[str, Any]) -> str:
 def _explicit_licence(value: object) -> bool:
     text = str(value or "").strip().casefold()
     return bool(text) and text != "unknown" and not text.startswith("not supplied")
+
+
+def _has_air_context(record: Mapping[str, Any]) -> bool:
+    text = " ".join(
+        [
+            str(record.get("title", "")),
+            str(record.get("description", "")),
+            " ".join(str(value) for value in record.get("themes", []) or []),
+        ]
+    )
+    return _AIR_CONTEXT_PATTERN.search(text) is not None
 
 
 def _format_tokens(endpoint: Mapping[str, Any]) -> set[str]:
@@ -298,6 +316,7 @@ def build_harvestability_manifest(
             {match["air_relevance"] for match in relevance_matches if match["air_relevance"]}
         )
         relevance_status = "MATCHED" if relevance_matches else "NO_MATCH"
+        air_context = any(_has_air_context(member) for member in members)
         machine = _machine_readable(selected)
         evidence_result = validation_index.get(
             (str(selected.get("source_id", "")), str(selected.get("resource_id", "")))
@@ -305,6 +324,7 @@ def build_harvestability_manifest(
         should_probe = (
             probe
             and relevance_status == "MATCHED"
+            and air_context
             and machine
             and probes_used < probe_limit
             and _safe_probe_url(str(selected.get("url", "")))
@@ -323,6 +343,7 @@ def build_harvestability_manifest(
         licence_ok = _explicit_licence(licence)
         candidate_for_test = (
             relevance_status == "MATCHED"
+            and air_context
             and reachable == "yes"
             and machine
             and licence_ok
@@ -340,6 +361,8 @@ def build_harvestability_manifest(
         reasons = []
         if relevance_status != "MATCHED":
             reasons.append("no governed pollutant/stressor relevance match")
+        if not air_context:
+            reasons.append("no explicit air-context evidence")
         if not machine:
             reasons.append("no machine-readable endpoint established")
         if reachable != "yes":
@@ -363,6 +386,7 @@ def build_harvestability_manifest(
             ),
             "temporal_resolution": str(representative.get("update_frequency", "")),
             "relevance_status": relevance_status,
+            "air_context": "yes" if air_context else "no",
             "stressor_ids": "|".join(stressor_ids),
             "air_relevance": "|".join(air_relevance),
             "authentication": auth,
@@ -400,6 +424,7 @@ def build_harvestability_manifest(
             "pollutants_variables",
             "temporal_resolution",
             "relevance_status",
+            "air_context",
             "stressor_ids",
             "air_relevance",
             "authentication",
@@ -434,6 +459,7 @@ def build_harvestability_manifest(
         "deduplicated_dataset_count": len(rows),
         "duplicate_records_collapsed": len(records) - len(rows),
         "relevant_dataset_count": sum(row["relevance_status"] == "MATCHED" for row in rows),
+        "air_context_dataset_count": sum(row["air_context"] == "yes" for row in rows),
         "machine_readable_count": sum(row["machine_readable"] == "yes" for row in rows),
         "reachable_count": sum(row["reachable"] == "yes" for row in rows),
         "candidate_for_test_count": sum(
