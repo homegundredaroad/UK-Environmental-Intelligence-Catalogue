@@ -150,3 +150,41 @@ def test_main_builds_receipt(tmp_path: Path, capsys: CaptureFixture[str]) -> Non
     printed = json.loads(capsys.readouterr().out)
     assert printed["upstream_run_id"] == "99"
     assert (output / "handoff-receipt.json").exists()
+
+
+def test_redact_url_preserves_nonstandard_port_while_removing_userinfo() -> None:
+    cleaned, count = _redact_url("https://u:p@example.test:8443/data")
+    assert cleaned == "https://example.test:8443/data"
+    assert count == 1
+
+
+def test_handoff_rejects_non_object_authoritative_registry(tmp_path: Path) -> None:
+    source = tmp_path / "catalogue.json"
+    registry_path = tmp_path / "registry.json"
+    source.write_text(json.dumps({"records": []}), encoding="utf-8")
+    registry_path.write_text(json.dumps([]), encoding="utf-8")
+
+    import pytest
+
+    with pytest.raises(ValueError, match="registry must be a JSON object"):
+        build_handoff(
+            source,
+            tmp_path / "out",
+            authoritative_registry_path=registry_path,
+        )
+
+
+def test_handoff_rejects_incomplete_authoritative_registry(tmp_path: Path) -> None:
+    source = tmp_path / "catalogue.json"
+    registry_path = tmp_path / "registry.json"
+    source.write_text(json.dumps({"records": []}), encoding="utf-8")
+    registry_path.write_text(json.dumps({"source_systems": []}), encoding="utf-8")
+
+    import pytest
+
+    with pytest.raises(ValueError, match="missing source_systems/national_networks"):
+        build_handoff(
+            source,
+            tmp_path / "out",
+            authoritative_registry_path=registry_path,
+        )
