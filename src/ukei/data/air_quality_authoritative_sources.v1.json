@@ -1,0 +1,578 @@
+{
+  "registry_version": 1,
+  "reviewed_on": "2026-10-06",
+  "purpose": "Governed UK air-quality structured-source and monitoring-network coverage registry for SCC/VVIP completeness auditing.",
+  "claim_boundary": "Registry inclusion documents a known structured source or monitoring network. It does not establish that every station is currently harvested, scientifically comparable, or suitable for regulatory or health conclusions.",
+  "coverage_policy": {
+    "exhaustive_goal": "Enumerate every known UK public structured observation source, its station/network inventory, historical availability, access method, quality tier and revision risk.",
+    "completeness_rule": "Coverage may be called complete only when every source_system marked required_for_exhaustive has an implemented direct inventory connector or an explicitly reviewed exception, every required national network is enumerated, and station reconciliation reports zero unexplained gaps.",
+    "fail_closed_status": "INCOMPLETE_UNTIL_REQUIRED_CONNECTORS_AND_STATION_RECONCILIATION_PASS",
+    "canonical_evidence_rule": "Original provider data and metadata remain canonical. Aggregators and analysis packages may cross-check discovery but cannot replace provider evidence."
+  },
+  "quality_tiers": {
+    "STATUTORY_REFERENCE": "National or devolved-government reference/compliance monitoring with formal QA/QC and ratification.",
+    "OFFICIAL_LOCAL": "Local-authority or official regional monitoring; quality and method evidence must be checked per station and period.",
+    "LOW_COST_SENSOR": "Calibrated sensor observations useful for spatial intelligence but not assumed equivalent to reference methods.",
+    "RESEARCH_SPECIALIST": "Research or specialist atmospheric measurements; scientifically valuable but fitness for SCC Air Quality must be assessed per dataset.",
+    "DERIVED_TOOL": "Convenience importer, analysis package or aggregator used for discovery/cross-checking only, never canonical evidence."
+  },
+  "source_systems": [
+    {
+      "id": "ukair-sos",
+      "name": "UK-AIR Sensor Observation Service",
+      "jurisdiction": "United Kingdom",
+      "scope": "observation_api",
+      "quality_tier": "STATUTORY_REFERENCE",
+      "endpoint_kind": "OGC_SOS",
+      "canonical_url": "https://uk-air.defra.gov.uk/data/about_sos",
+      "endpoint": "https://uk-air.defra.gov.uk/sos-ukair/service?service=SOS&request=GetCapabilities",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "GetCapabilities plus provider station/network registry reconciliation",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": true,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "uk-air.defra.gov.uk",
+        "department for environment, food and rural affairs",
+        "defra"
+      ]
+    },
+    {
+      "id": "ukair-data-archive",
+      "name": "UK-AIR Data Archive and Network Site Search",
+      "jurisdiction": "United Kingdom",
+      "scope": "archive_and_station_registry",
+      "quality_tier": "STATUTORY_REFERENCE",
+      "endpoint_kind": "CSV_HTML_ARCHIVE",
+      "canonical_url": "https://uk-air.defra.gov.uk/data/",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "Enumerate current and closed sites by network and retain preformatted/provider downloads",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": true,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "uk-air.defra.gov.uk"
+      ]
+    },
+    {
+      "id": "defra-get-air-pollution-data",
+      "name": "Get air pollution data",
+      "jurisdiction": "United Kingdom",
+      "scope": "public_download_service",
+      "quality_tier": "STATUTORY_REFERENCE",
+      "endpoint_kind": "PUBLIC_DATA_SERVICE",
+      "canonical_url": "https://get-air-pollution-data.defra.gov.uk/",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "Reconcile station search and downloadable datasets against UK-AIR registries",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": true,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "get-air-pollution-data.defra.gov.uk"
+      ]
+    },
+    {
+      "id": "ukair-locally-managed",
+      "name": "UK-AIR locally-managed automatic monitoring aggregation",
+      "jurisdiction": "United Kingdom",
+      "scope": "official_local_aggregation",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "MULTI_PROVIDER_HARVEST",
+      "canonical_url": "https://uk-air.defra.gov.uk/networks/network-info?view=laqm",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "Enumerate provider feeds and reconcile against each local/regional source; UK-AIR states this aggregation is not complete",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": false,
+      "direct_connector_status": "MISSING",
+      "completeness_note": "Known incomplete aggregator; source-native local reconciliation is mandatory.",
+      "catalogue_match_patterns": [
+        "air quality england",
+        "kent and medway",
+        "sussex air quality",
+        "heathrow airwatch",
+        "norfolk",
+        "nottingham"
+      ]
+    },
+    {
+      "id": "laqm-central",
+      "name": "LAQM Portal, Local Air Quality Dashboard, DTDES and ADES structured submissions",
+      "jurisdiction": "England, Scotland and Wales with scheme-specific rules",
+      "scope": "local_authority_structured_reporting",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "PORTAL_STRUCTURED_SUBMISSION_AND_DASHBOARD",
+      "canonical_url": "https://laqm.defra.gov.uk/",
+      "access": "mixed_public_and_authority_submission",
+      "machine_readable": true,
+      "station_inventory_strategy": "Reconcile authority submissions, diffusion-tube records, automatic monitoring and annual reporting",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": false,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "laqm.defra.gov.uk",
+        "local air quality"
+      ]
+    },
+    {
+      "id": "scottish-air-quality-api",
+      "name": "Scottish Air Quality public API",
+      "jurisdiction": "Scotland",
+      "scope": "observation_api",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "OPENAPI_REST",
+      "canonical_url": "https://api.scottishairquality.scot/",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "Enumerate site metadata and automatic/diffusion-tube observations through the documented API",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": true,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "scottishairquality.scot",
+        "scottish government spatialdata",
+        "scottish air quality"
+      ]
+    },
+    {
+      "id": "wales-air-sos",
+      "name": "Air Quality in Wales Sensor Observation Service",
+      "jurisdiction": "Wales",
+      "scope": "observation_api",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "OGC_SOS",
+      "canonical_url": "https://www.airquality.gov.wales/maps-data/open-data-services/sensor-observation-services-sos",
+      "endpoint": "https://www.airquality.gov.wales/sos-waq/service?request=GetCapabilities&service=SOS",
+      "endpoint_status": "DOCUMENTED_REVALIDATION_REQUIRED",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "SOS capabilities and station metadata, cross-checked against Wales archive and Atom metadata",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": true,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "airquality.gov.wales",
+        "welsh government"
+      ]
+    },
+    {
+      "id": "wales-air-atom",
+      "name": "Air Quality in Wales Atom download services",
+      "jurisdiction": "Wales",
+      "scope": "bulk_observation_and_metadata",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "ATOM_XML_AQ_ER",
+      "canonical_url": "https://www.airquality.gov.wales/maps-data/open-data-services/atom-data-feed",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "Enumerate automatic, non-automatic, aggregated-statistics and metadata Atom feeds",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": true,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "airquality.gov.wales"
+      ]
+    },
+    {
+      "id": "ni-air-sos",
+      "name": "Northern Ireland Air Sensor Observation Service",
+      "jurisdiction": "Northern Ireland",
+      "scope": "observation_api",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "OGC_SOS",
+      "canonical_url": "https://www.airqualityni.co.uk/data/sos",
+      "endpoint": "https://www.airqualityni.co.uk/data/sos/service?request=GetCapabilities&service=SOS",
+      "endpoint_status": "DOCUMENTED_REVALIDATION_REQUIRED",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "SOS capabilities reconciled against Spatial Object Register",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": true,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "airqualityni.co.uk",
+        "open data ni",
+        "daera"
+      ]
+    },
+    {
+      "id": "ni-air-spatial-register",
+      "name": "Northern Ireland Air Spatial Object Register",
+      "jurisdiction": "Northern Ireland",
+      "scope": "station_process_metadata",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "AQ_E_REPORTING_INSPIRE",
+      "canonical_url": "https://www.airqualityni.co.uk/data/so-about",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "Enumerate network, station, sampling-point and measurement-process objects with persistent identifiers",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": true,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "airqualityni.co.uk"
+      ]
+    },
+    {
+      "id": "londonair-api",
+      "name": "London Air Quality Network API",
+      "jurisdiction": "Greater London",
+      "scope": "observation_api",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "XML_JSON_REST",
+      "canonical_url": "https://www.londonair.org.uk/Londonair/API/",
+      "access": "public_ogl",
+      "machine_readable": true,
+      "station_inventory_strategy": "Enumerate sites/species and observations directly from LAQN API, including historical status",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": false,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "londonair.org.uk",
+        "greater london authority",
+        "london borough"
+      ]
+    },
+    {
+      "id": "air-quality-england",
+      "name": "Air Quality England and participating local networks",
+      "jurisdiction": "England",
+      "scope": "official_local_aggregation",
+      "quality_tier": "OFFICIAL_LOCAL",
+      "endpoint_kind": "PUBLIC_PORTAL_PROVIDER_FEED",
+      "canonical_url": "https://www.airqualityengland.co.uk/",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "Enumerate participating local-authority sites and reconcile with UK-AIR locally-managed aggregation and authority records",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": false,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "airqualityengland.co.uk",
+        "air quality england"
+      ]
+    },
+    {
+      "id": "breathe-london-api",
+      "name": "Breathe London sensor network API",
+      "jurisdiction": "Greater London",
+      "scope": "sensor_observation_api",
+      "quality_tier": "LOW_COST_SENSOR",
+      "endpoint_kind": "JSON_REST_API_KEY",
+      "canonical_url": "https://www.breathelondon.org/developers",
+      "access": "registration_api_key",
+      "machine_readable": true,
+      "station_inventory_strategy": "Enumerate sensors and historical sensor data separately from reference/compliance networks",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": false,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "breathelondon.org",
+        "breathe london"
+      ]
+    },
+    {
+      "id": "actris-data-portal",
+      "name": "ACTRIS Data Portal and Metadata API",
+      "jurisdiction": "European with UK facilities",
+      "scope": "research_atmospheric_catalogue",
+      "quality_tier": "RESEARCH_SPECIALIST",
+      "endpoint_kind": "METADATA_API_AND_DATA_PORTAL",
+      "canonical_url": "https://data.actris.eu/",
+      "access": "public_dataset_dependent",
+      "machine_readable": true,
+      "station_inventory_strategy": "Filter facilities to UK and reconcile atmospheric datasets/variables against specialist UK network records",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": false,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "actris",
+        "data.actris.eu"
+      ]
+    },
+    {
+      "id": "ceda-moles",
+      "name": "CEDA MOLES environmental metadata catalogue",
+      "jurisdiction": "United Kingdom and international research holdings",
+      "scope": "research_metadata_catalogue",
+      "quality_tier": "RESEARCH_SPECIALIST",
+      "endpoint_kind": "REST_METADATA_API",
+      "canonical_url": "https://catalogue.ceda.ac.uk/",
+      "access": "mixed_visibility",
+      "machine_readable": true,
+      "station_inventory_strategy": "Query UK atmospheric collections and preserve dataset/PID provenance; never substitute for provider observation evidence",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": true,
+      "required_for_statutory": false,
+      "direct_connector_status": "MISSING",
+      "catalogue_match_patterns": [
+        "centre for environmental data analysis",
+        "ceda",
+        "catalogue.ceda.ac.uk"
+      ]
+    },
+    {
+      "id": "openair-ukaq",
+      "name": "openair/openairmaps/ukaq UK import ecosystem",
+      "jurisdiction": "United Kingdom",
+      "scope": "derived_import_and_crosscheck",
+      "quality_tier": "DERIVED_TOOL",
+      "endpoint_kind": "R_PACKAGE_AND_DAILY_DATA_CACHE",
+      "canonical_url": "https://openair-project.github.io/book/",
+      "access": "public",
+      "machine_readable": true,
+      "station_inventory_strategy": "Use only as independent discovery/cross-check of provider coverage and timestamp semantics",
+      "historical_revision_expected": true,
+      "required_for_exhaustive": false,
+      "required_for_statutory": false,
+      "direct_connector_status": "NOT_CANONICAL",
+      "catalogue_match_patterns": [
+        "openair"
+      ]
+    }
+  ],
+  "national_networks": [
+    {
+      "id": "aurn",
+      "name": "Automatic Urban and Rural Network (AURN)",
+      "source_system": "ukair-sos",
+      "observed_current_site_count": 214,
+      "observed_total_site_count": 327,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "locally-managed-automatic",
+      "name": "Locally-managed automatic monitoring",
+      "source_system": "ukair-locally-managed",
+      "observed_current_site_count": null,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "known_incomplete_provider_aggregation",
+      "enumeration_status": "MISSING",
+      "quality_tier": "OFFICIAL_LOCAL"
+    },
+    {
+      "id": "automatic-hydrocarbon",
+      "name": "Automatic Hydrocarbon Network",
+      "source_system": "ukair-sos",
+      "observed_current_site_count": 5,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "site_search_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "nonautomatic-hydrocarbon",
+      "name": "Non-Automatic Hydrocarbon Network",
+      "source_system": "ukair-sos",
+      "observed_current_site_count": 34,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "pah",
+      "name": "Polycyclic Aromatic Hydrocarbon Network",
+      "source_system": "ukair-sos",
+      "observed_current_site_count": 36,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "tomps",
+      "name": "Toxic Organic Micropollutants Network (TOMPs)",
+      "source_system": "ukair-sos",
+      "observed_current_site_count": null,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "enumerate_live_registry",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "black-carbon",
+      "name": "Black Carbon Network",
+      "source_system": "ukair-sos",
+      "observed_current_site_count": 26,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "heavy-metals",
+      "name": "Heavy Metals Network",
+      "source_system": "ukair-sos",
+      "observed_current_site_count": 23,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "particle-concentrations-numbers",
+      "name": "Particle Concentrations and Numbers Network",
+      "source_system": "ukair-sos",
+      "observed_current_site_count": 5,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "stratospheric-ozone-uv",
+      "name": "Stratospheric Ozone and UV Network",
+      "source_system": "ukair-data-archive",
+      "observed_current_site_count": null,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "enumerate_live_registry",
+      "enumeration_status": "MISSING",
+      "quality_tier": "RESEARCH_SPECIALIST"
+    },
+    {
+      "id": "precip-net",
+      "name": "UKEAP Precipitation Network",
+      "source_system": "ukair-data-archive",
+      "observed_current_site_count": 48,
+      "observed_total_site_count": 153,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "acid-gas-aerosol",
+      "name": "UKEAP Acid Gas and Aerosol Network",
+      "source_system": "ukair-data-archive",
+      "observed_current_site_count": 28,
+      "observed_total_site_count": 37,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "rural-no2",
+      "name": "UKEAP Rural Nitrogen Dioxide Network",
+      "source_system": "ukair-data-archive",
+      "observed_current_site_count": 25,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "national-ammonia",
+      "name": "UKEAP National Ammonia Monitoring Network",
+      "source_system": "ukair-data-archive",
+      "observed_current_site_count": 112,
+      "observed_total_site_count": 191,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_table_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE",
+      "notes": [
+        "Provider narrative and table counts can differ; enumerate live records rather than relying on prose counts."
+      ]
+    },
+    {
+      "id": "marga",
+      "name": "UKEAP MARGA Network",
+      "source_system": "ukair-data-archive",
+      "observed_current_site_count": 2,
+      "observed_total_site_count": 3,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "automatic-mercury",
+      "name": "UKEAP Automatic Mercury Network",
+      "source_system": "ukair-data-archive",
+      "observed_current_site_count": 2,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_page_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    },
+    {
+      "id": "urban-no2",
+      "name": "UK Urban NO2 Network",
+      "source_system": "ukair-data-archive",
+      "observed_current_site_count": 298,
+      "observed_total_site_count": null,
+      "observed_on": "2026-10-06",
+      "count_status": "provider_site_search_observed",
+      "enumeration_status": "MISSING",
+      "quality_tier": "STATUTORY_REFERENCE"
+    }
+  ],
+  "historical_revision_rules": [
+    {
+      "id": "ratified-data-can-change",
+      "applies_to": [
+        "ukair-sos",
+        "ukair-data-archive",
+        "londonair-api",
+        "scottish-air-quality-api",
+        "wales-air-sos",
+        "ni-air-sos"
+      ],
+      "rule": "Do not treat ratification as immutable. Store provider retrieval timestamp, edition/content hash and supersession lineage; reacquire canonical data for each reproducible release."
+    },
+    {
+      "id": "ammonia-2022-2023-reissue",
+      "applies_to": [
+        "national-ammonia"
+      ],
+      "rule": "Track the formal reissue of 2022 and 2023 ammonia results and do not mix withdrawn and revised editions."
+    },
+    {
+      "id": "ozone-method-change-2025",
+      "applies_to": [
+        "aurn"
+      ],
+      "rule": "Record ozone method/scale metadata around the 1 January 2025 absorption-cross-section change before long-term comparison."
+    },
+    {
+      "id": "pcn-instrument-change-2023",
+      "applies_to": [
+        "particle-concentrations-numbers"
+      ],
+      "rule": "Record instrument family and particle-size range; flag before/after comparisons across the 2023 SMPS replacements."
+    }
+  ]
+}

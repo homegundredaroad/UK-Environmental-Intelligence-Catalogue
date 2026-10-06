@@ -23,6 +23,10 @@ on:
       - "src/ukei/harvestability.py"
       - "tests/test_harvestability.py"
       - "docs/scc-air-quality-harvestability.md"
+      - "docs/air-quality-authoritative-coverage.md"
+      - "src/ukei/air_quality_coverage.py"
+      - "src/ukei/data/air_quality_authoritative_sources.v1.json"
+      - "tests/test_air_quality_coverage.py"
 
 permissions:
   actions: read
@@ -122,6 +126,44 @@ jobs:
           fi
           python -m ukei.harvestability "${args[@]}"
 
+      - name: Build authoritative coverage audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ukei.air_quality_coverage \
+            "${RUNNER_TEMP}/harvestability-output/harvestability-manifest.csv" \
+            "${RUNNER_TEMP}/coverage-output"
+
+      - name: Verify authoritative coverage boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt = json.loads(
+              (
+                  Path(os.environ["RUNNER_TEMP"])
+                  / "coverage-output"
+                  / "authoritative-coverage-receipt.json"
+              ).read_text()
+          )
+          governance = receipt["governance"]
+          assert governance["review_status"] == "REVIEW_REQUIRED"
+          assert governance["scientific_admissibility_conferred"] is False
+          assert governance["production_change_authorised"] is False
+          assert governance["canonical_provider_evidence_required"] is True
+          if governance["completeness_may_be_claimed"]:
+              assert receipt["required_direct_connector_gap_count"] == 0
+              assert receipt["network_enumeration_gap_count"] == 0
+          print(
+              "PASS: coverage audit remains fail-closed; "
+              f"{receipt['required_direct_connector_gap_count']} direct connector gaps and "
+              f"{receipt['network_enumeration_gap_count']} network enumeration gaps."
+          )
+          PY
       - name: Verify SCC and VVIP claim boundary
         shell: bash
         run: |
@@ -166,10 +208,18 @@ jobs:
           mkdir -p "${dest}"
           cp "${out}/harvestability-manifest.csv" "${dest}/harvestability-manifest.csv"
           cp "${out}/harvestability-receipt.json" "${dest}/harvestability-receipt.json"
+          cp "${RUNNER_TEMP}/coverage-output/authoritative-coverage-matrix.csv" \
+            "${dest}/authoritative-coverage-matrix.csv"
+          cp "${RUNNER_TEMP}/coverage-output/authoritative-coverage-receipt.json" \
+            "${dest}/authoritative-coverage-receipt.json"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f "${dest}/harvestability-manifest.csv" "${dest}/harvestability-receipt.json"
+          git add -f \
+            "${dest}/harvestability-manifest.csv" \
+            "${dest}/harvestability-receipt.json" \
+            "${dest}/authoritative-coverage-matrix.csv" \
+            "${dest}/authoritative-coverage-receipt.json"
           if git diff --cached --quiet; then
             echo "No harvestability changes to publish."
             exit 0
@@ -186,6 +236,7 @@ jobs:
           path: |
             ${{ runner.temp }}/harvestability-output/
             ${{ runner.temp }}/harvestability-input/cross-media/
+            ${{ runner.temp }}/coverage-output/
           if-no-files-found: warn
           retention-days: 30
 
@@ -222,5 +273,23 @@ jobs:
                   f"**{receipt['candidate_for_test_count']}**\n\n"
               )
               fh.write("Scientific admissibility conferred: **no**\n\n")
-              fh.write("Production change authorised: **no**\n")
+              fh.write("Production change authorised: **no**\n\n")
+
+              coverage_path = (
+                  Path(os.environ["RUNNER_TEMP"])
+                  / "coverage-output"
+                  / "authoritative-coverage-receipt.json"
+              )
+              if coverage_path.exists():
+                  coverage = json.loads(coverage_path.read_text())
+                  fh.write("## Authoritative coverage gate\n\n")
+                  fh.write(
+                      "Required source-system connector gaps: "
+                      f"**{coverage['required_direct_connector_gap_count']}**\n\n"
+                  )
+                  fh.write(
+                      "National-network enumeration gaps: "
+                      f"**{coverage['network_enumeration_gap_count']}**\n\n"
+                  )
+                  fh.write(f"Coverage claim: **{coverage['coverage_claim']}**\n")
           PY
