@@ -9,9 +9,9 @@ import pytest
 from ukei.air_quality_coverage import (
     build_air_quality_coverage_report,
     load_coverage_registry,
-    main,
     validate_coverage_registry,
 )
+from ukei.air_quality_coverage import main as coverage_main
 
 
 EXPECTED_NETWORKS = {
@@ -241,7 +241,7 @@ def test_main_writes_machine_readable_receipt(
 ) -> None:
     manifest = tmp_path / "manifest.csv"
     _write_manifest(manifest)
-    assert main([str(manifest), str(tmp_path / "cli")]) == 0
+    assert coverage_main([str(manifest), str(tmp_path / "cli")]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["schema"] == "ukei_scc_air_quality_coverage_v1"
     assert (tmp_path / "cli" / "authoritative-coverage-receipt.json").exists()
