@@ -95,6 +95,41 @@ def test_handoff_copies_validation_and_run_receipt(tmp_path: Path) -> None:
     assert "REDACTED" in validation_raw
 
 
+
+def test_handoff_includes_authoritative_registry(tmp_path: Path) -> None:
+    catalogue = {"records": []}
+    registry = {
+        "registry_version": 1,
+        "reviewed_on": "2026-10-06",
+        "source_systems": [
+            {"id": "defra", "required_for_exhaustive": True, "direct_connector_status": "MISSING"}
+        ],
+        "national_networks": [
+            {"id": "aurn", "enumeration_status": "MISSING"}
+        ],
+        "historical_revision_rules": [{"id": "ratified_can_change"}],
+    }
+    source = tmp_path / "catalogue.json"
+    registry_path = tmp_path / "registry.json"
+    source.write_text(json.dumps(catalogue), encoding="utf-8")
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+
+    receipt = build_handoff(
+        source,
+        tmp_path / "out",
+        authoritative_registry_path=registry_path,
+    )
+
+    meta = receipt["authoritative_registry"]
+    assert meta["source_system_count"] == 1
+    assert meta["national_network_count"] == 1
+    assert meta["missing_direct_connector_count"] == 1
+    assert meta["missing_network_enumeration_count"] == 1
+    raw = gzip.decompress(
+        (tmp_path / "out" / "authoritative-air-quality-registry.json.gz").read_bytes()
+    )
+    assert json.loads(raw)["registry_version"] == 1
+
 def test_main_builds_receipt(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
     source = tmp_path / "catalogue.json"
     source.write_text(json.dumps({"records": []}), encoding="utf-8")
