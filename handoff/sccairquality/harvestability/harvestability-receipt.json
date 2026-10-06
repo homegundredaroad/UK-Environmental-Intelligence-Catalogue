@@ -4,7 +4,7 @@
   "candidate_for_test_count": 24,
   "deduplicated_dataset_count": 554,
   "duplicate_records_collapsed": 33,
-  "generated_at_utc": "2026-10-05T17:50:03+00:00",
+  "generated_at_utc": "2026-10-06T04:56:59+00:00",
   "governance": {
     "claim_boundary": "Harvestability qualification is discovery evidence only. SCC Air Quality must independently reacquire and validate original-provider evidence before use.",
     "production_change_authorised": false,
@@ -14,7 +14,7 @@
   "input_record_count": 587,
   "live_probes_performed": 117,
   "machine_readable_count": 321,
-  "reachable_count": 66,
+  "reachable_count": 67,
   "relevant_dataset_count": 377,
   "schema": "ukei_scc_air_quality_harvestability_v1"
 }
