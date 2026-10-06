@@ -6,12 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ukei.air_quality_coverage import (
-    build_air_quality_coverage_report,
-    load_coverage_registry,
-    validate_coverage_registry,
-)
-from ukei.air_quality_coverage import main as coverage_main
+from ukei import air_quality_coverage
 
 
 EXPECTED_NETWORKS = {
@@ -103,7 +98,7 @@ def _write_manifest(path: Path) -> None:
 
 
 def test_registry_covers_required_source_systems_and_national_networks() -> None:
-    registry = load_coverage_registry()
+    registry = air_quality_coverage.load_coverage_registry()
     systems = {system["id"]: system for system in registry["source_systems"]}
     networks = {network["id"]: network for network in registry["national_networks"]}
 
@@ -121,9 +116,9 @@ def test_registry_covers_required_source_systems_and_national_networks() -> None
 
 def test_registry_validation_fails_closed() -> None:
     with pytest.raises(ValueError, match="registry_version"):
-        validate_coverage_registry({})
+        air_quality_coverage.validate_coverage_registry({})
     with pytest.raises(ValueError, match="source_systems"):
-        validate_coverage_registry(
+        air_quality_coverage.validate_coverage_registry(
             {"registry_version": 1, "source_systems": [], "national_networks": []}
         )
 
@@ -148,13 +143,13 @@ def test_registry_validation_fails_closed() -> None:
         ],
     }
     with pytest.raises(ValueError, match="quality tier"):
-        validate_coverage_registry(bad_system)
+        air_quality_coverage.validate_coverage_registry(bad_system)
 
 
 def test_coverage_report_exposes_connector_and_network_gaps(tmp_path: Path) -> None:
     manifest = tmp_path / "manifest.csv"
     _write_manifest(manifest)
-    receipt = build_air_quality_coverage_report(manifest, tmp_path / "out")
+    receipt = air_quality_coverage.build_air_quality_coverage_report(manifest, tmp_path / "out")
 
     assert receipt["manifest_record_count"] == 3
     assert receipt["manifest_air_context_count"] == 2
@@ -203,7 +198,7 @@ def test_validation_rejects_duplicate_unknown_and_bad_network_status() -> None:
         ],
     }
     with pytest.raises(ValueError, match="unique"):
-        validate_coverage_registry(duplicate)
+        air_quality_coverage.validate_coverage_registry(duplicate)
 
     unknown = {
         "registry_version": 1,
@@ -218,7 +213,7 @@ def test_validation_rejects_duplicate_unknown_and_bad_network_status() -> None:
         ],
     }
     with pytest.raises(ValueError, match="unknown"):
-        validate_coverage_registry(unknown)
+        air_quality_coverage.validate_coverage_registry(unknown)
 
     bad_status = {
         "registry_version": 1,
@@ -233,7 +228,7 @@ def test_validation_rejects_duplicate_unknown_and_bad_network_status() -> None:
         ],
     }
     with pytest.raises(ValueError, match="enumeration_status"):
-        validate_coverage_registry(bad_status)
+        air_quality_coverage.validate_coverage_registry(bad_status)
 
 
 def test_main_writes_machine_readable_receipt(
@@ -241,7 +236,7 @@ def test_main_writes_machine_readable_receipt(
 ) -> None:
     manifest = tmp_path / "manifest.csv"
     _write_manifest(manifest)
-    assert coverage_main([str(manifest), str(tmp_path / "cli")]) == 0
+    assert air_quality_coverage.main([str(manifest), str(tmp_path / "cli")]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["schema"] == "ukei_scc_air_quality_coverage_v1"
     assert (tmp_path / "cli" / "authoritative-coverage-receipt.json").exists()
