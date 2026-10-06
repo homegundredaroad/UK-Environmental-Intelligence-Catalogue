@@ -107,12 +107,12 @@ def test_registry_covers_required_source_systems_and_national_networks() -> None
     systems = {system["id"]: system for system in registry["source_systems"]}
     networks = {network["id"]: network for network in registry["national_networks"]}
 
-    assert EXPECTED_NETWORKS == set(networks)
-    assert EXPECTED_REQUIRED_SYSTEMS <= {
+    assert set(networks) == EXPECTED_NETWORKS
+    assert {
         source_id
         for source_id, system in systems.items()
         if system["required_for_exhaustive"]
-    }
+    } >= EXPECTED_REQUIRED_SYSTEMS
     assert systems["breathe-london-api"]["quality_tier"] == "LOW_COST_SENSOR"
     assert systems["openair-ukaq"]["quality_tier"] == "DERIVED_TOOL"
     assert networks["national-ammonia"]["enumeration_status"] == "MISSING"
@@ -123,7 +123,9 @@ def test_registry_validation_fails_closed() -> None:
     with pytest.raises(ValueError, match="registry_version"):
         validate_coverage_registry({})
     with pytest.raises(ValueError, match="source_systems"):
-        validate_coverage_registry({"registry_version": 1, "source_systems": [], "national_networks": []})
+        validate_coverage_registry(
+            {"registry_version": 1, "source_systems": [], "national_networks": []}
+        )
 
     bad_system = {
         "registry_version": 1,
@@ -136,7 +138,14 @@ def test_registry_validation_fails_closed() -> None:
                 "catalogue_match_patterns": [],
             }
         ],
-        "national_networks": [{"id": "n", "source_system": "x", "quality_tier": "STATUTORY_REFERENCE", "enumeration_status": "MISSING"}],
+        "national_networks": [
+            {
+                "id": "n",
+                "source_system": "x",
+                "quality_tier": "STATUTORY_REFERENCE",
+                "enumeration_status": "MISSING",
+            }
+        ],
     }
     with pytest.raises(ValueError, match="quality tier"):
         validate_coverage_registry(bad_system)
