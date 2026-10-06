@@ -69,7 +69,11 @@ def validate_coverage_registry(payload: object) -> None:
             raise ValueError(f"network source system is unknown: {network_id}")
         if network.get("quality_tier") not in _ALLOWED_TIERS:
             raise ValueError(f"invalid network quality tier: {network_id}")
-        if network.get("enumeration_status") not in {"MISSING", "IMPLEMENTED", "EXCEPTION_REVIEWED"}:
+        if network.get("enumeration_status") not in {
+            "MISSING",
+            "IMPLEMENTED",
+            "EXCEPTION_REVIEWED",
+        }:
             raise ValueError(f"invalid enumeration_status: {network_id}")
 
 
@@ -87,7 +91,11 @@ def _system_matches(row: dict[str, str], patterns: list[object]) -> bool:
             row.get("member_source_ids", ""),
         ]
     ).casefold()
-    return any(str(pattern).strip().casefold() in haystack for pattern in patterns if str(pattern).strip())
+    return any(
+        str(pattern).strip().casefold() in haystack
+        for pattern in patterns
+        if str(pattern).strip()
+    )
 
 
 def _row_count(rows: list[dict[str, str]], key: str, value: str) -> int:
@@ -147,7 +155,9 @@ def build_air_quality_coverage_report(
                 "endpoint": str(system.get("endpoint", "")),
                 "endpoint_status": str(system.get("endpoint_status", "")),
                 "station_inventory_strategy": str(system.get("station_inventory_strategy", "")),
-                "historical_revision_expected": bool(system.get("historical_revision_expected", False)),
+                "historical_revision_expected": bool(
+                    system.get("historical_revision_expected", False)
+                ),
                 "completeness_note": str(system.get("completeness_note", "")),
             }
         )
