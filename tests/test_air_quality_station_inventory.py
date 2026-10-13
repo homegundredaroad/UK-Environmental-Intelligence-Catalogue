@@ -7,7 +7,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-from ukei import air_quality_station_inventory as inventory
+import ukei.air_quality_station_inventory as inventory
 
 
 CURRENT_HTML = """
@@ -156,8 +156,9 @@ def test_build_aurn_inventory_writes_hashed_snapshot_and_continuity(tmp_path: Pa
     assert "uka:UKA00002" in second["continuity"]["missing_from_current_snapshot"]
 
 
-def test_fetch_page_rejects_bad_budget_and_http(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    del tmp_path
+def test_fetch_page_rejects_bad_budget_and_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with pytest.raises(inventory.InventoryError, match="HTTPS"):
         inventory.fetch_page("http://example.test")
     with pytest.raises(ValueError, match="budget"):
@@ -233,7 +234,9 @@ def test_fetch_page_fails_on_large_body_and_non_retryable_http(
 ) -> None:
     class LargeResponse:
         status = 200
-        headers: dict[str, str] = {}
+
+        def __init__(self) -> None:
+            self.headers: dict[str, str] = {}
 
         def __enter__(self) -> LargeResponse:
             return self
@@ -265,7 +268,11 @@ def test_fetch_page_fails_on_large_body_and_non_retryable_http(
         inventory.fetch_page("https://example.test")
 
 
-def test_main_uses_builder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+def test_main_uses_builder(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     expected = {"schema": inventory.INVENTORY_SCHEMA}
 
     def fake_build(*args: object, **kwargs: object) -> dict[str, object]:
