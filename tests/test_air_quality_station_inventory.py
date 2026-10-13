@@ -7,7 +7,7 @@ from urllib.error import HTTPError, URLError
 
 import pytest
 
-import ukei.air_quality_station_inventory as inventory
+import ukei.air_quality_station_inventory as inventory  # isort: skip
 
 
 CURRENT_HTML = """
