@@ -6,12 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from ukei.air_quality_coverage import (
-    build_air_quality_coverage_report,
-    load_coverage_registry,
-    main,
-    validate_coverage_registry,
-)
+import ukei.air_quality_coverage as air_quality_coverage  # isort: skip
 
 
 EXPECTED_NETWORKS = {
@@ -103,27 +98,29 @@ def _write_manifest(path: Path) -> None:
 
 
 def test_registry_covers_required_source_systems_and_national_networks() -> None:
-    registry = load_coverage_registry()
+    registry = air_quality_coverage.load_coverage_registry()
     systems = {system["id"]: system for system in registry["source_systems"]}
     networks = {network["id"]: network for network in registry["national_networks"]}
 
-    assert EXPECTED_NETWORKS == set(networks)
-    assert EXPECTED_REQUIRED_SYSTEMS <= {
-        source_id
-        for source_id, system in systems.items()
-        if system["required_for_exhaustive"]
-    }
+    assert set(networks) == EXPECTED_NETWORKS
+    assert {
+        source_id for source_id, system in systems.items() if system["required_for_exhaustive"]
+    } >= EXPECTED_REQUIRED_SYSTEMS
     assert systems["breathe-london-api"]["quality_tier"] == "LOW_COST_SENSOR"
     assert systems["openair-ukaq"]["quality_tier"] == "DERIVED_TOOL"
     assert networks["national-ammonia"]["enumeration_status"] == "MISSING"
     assert registry["coverage_policy"]["fail_closed_status"].startswith("INCOMPLETE_")
+    tool_ids = {tool["id"] for tool in registry["analysis_tools"]}
+    assert {"openair-v3", "aeolus-aq", "duckdb-spatial", "pandera"} <= tool_ids
 
 
 def test_registry_validation_fails_closed() -> None:
     with pytest.raises(ValueError, match="registry_version"):
-        validate_coverage_registry({})
+        air_quality_coverage.validate_coverage_registry({})
     with pytest.raises(ValueError, match="source_systems"):
-        validate_coverage_registry({"registry_version": 1, "source_systems": [], "national_networks": []})
+        air_quality_coverage.validate_coverage_registry(
+            {"registry_version": 1, "source_systems": [], "national_networks": []}
+        )
 
     bad_system = {
         "registry_version": 1,
@@ -136,18 +133,29 @@ def test_registry_validation_fails_closed() -> None:
                 "catalogue_match_patterns": [],
             }
         ],
-        "national_networks": [{"id": "n", "source_system": "x", "quality_tier": "STATUTORY_REFERENCE", "enumeration_status": "MISSING"}],
+        "national_networks": [
+            {
+                "id": "n",
+                "source_system": "x",
+                "quality_tier": "STATUTORY_REFERENCE",
+                "enumeration_status": "MISSING",
+            }
+        ],
     }
     with pytest.raises(ValueError, match="quality tier"):
-        validate_coverage_registry(bad_system)
+        air_quality_coverage.validate_coverage_registry(bad_system)
 
 
 def test_coverage_report_exposes_connector_and_network_gaps(tmp_path: Path) -> None:
     manifest = tmp_path / "manifest.csv"
     _write_manifest(manifest)
-    receipt = build_air_quality_coverage_report(manifest, tmp_path / "out")
+    receipt = air_quality_coverage.build_air_quality_coverage_report(manifest, tmp_path / "out")
 
     assert receipt["manifest_record_count"] == 3
+    assert receipt["manifest_provider_count"] == 3
+    assert len(receipt["manifest_sha256"]) == 64
+    assert len(receipt["registry_sha256"]) == 64
+    assert len(receipt["receipt_sha256"]) == 64
     assert receipt["manifest_air_context_count"] == 2
     assert receipt["manifest_candidate_for_test_count"] == 1
     assert receipt["required_direct_connector_gap_count"] == len(EXPECTED_REQUIRED_SYSTEMS)
@@ -156,14 +164,13 @@ def test_coverage_report_exposes_connector_and_network_gaps(tmp_path: Path) -> N
     assert set(receipt["network_enumeration_gaps"]) == EXPECTED_NETWORKS
     assert receipt["governance"]["completeness_may_be_claimed"] is False
     assert receipt["governance"]["scientific_admissibility_conferred"] is False
+    assert "openair-v3" in receipt["analysis_tool_ids"]
+    assert "ratified-data-can-change" in receipt["historical_revision_rule_ids"]
 
-    matrix = list(
-        csv.DictReader(
-            (tmp_path / "out" / "authoritative-coverage-matrix.csv").open(
-                newline="", encoding="utf-8"
-            )
-        )
-    )
+    with (tmp_path / "out" / "authoritative-coverage-matrix.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        matrix = list(csv.DictReader(handle))
     ukair = next(row for row in matrix if row["source_system_id"] == "ukair-sos")
     london = next(row for row in matrix if row["source_system_id"] == "londonair-api")
     breathe = next(row for row in matrix if row["source_system_id"] == "breathe-london-api")
@@ -194,7 +201,7 @@ def test_validation_rejects_duplicate_unknown_and_bad_network_status() -> None:
         ],
     }
     with pytest.raises(ValueError, match="unique"):
-        validate_coverage_registry(duplicate)
+        air_quality_coverage.validate_coverage_registry(duplicate)
 
     unknown = {
         "registry_version": 1,
@@ -209,7 +216,7 @@ def test_validation_rejects_duplicate_unknown_and_bad_network_status() -> None:
         ],
     }
     with pytest.raises(ValueError, match="unknown"):
-        validate_coverage_registry(unknown)
+        air_quality_coverage.validate_coverage_registry(unknown)
 
     bad_status = {
         "registry_version": 1,
@@ -224,7 +231,7 @@ def test_validation_rejects_duplicate_unknown_and_bad_network_status() -> None:
         ],
     }
     with pytest.raises(ValueError, match="enumeration_status"):
-        validate_coverage_registry(bad_status)
+        air_quality_coverage.validate_coverage_registry(bad_status)
 
 
 def test_main_writes_machine_readable_receipt(
@@ -232,7 +239,7 @@ def test_main_writes_machine_readable_receipt(
 ) -> None:
     manifest = tmp_path / "manifest.csv"
     _write_manifest(manifest)
-    assert main([str(manifest), str(tmp_path / "cli")]) == 0
+    assert air_quality_coverage.main([str(manifest), str(tmp_path / "cli")]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["schema"] == "ukei_scc_air_quality_coverage_v1"
     assert (tmp_path / "cli" / "authoritative-coverage-receipt.json").exists()

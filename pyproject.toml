@@ -68,9 +68,13 @@ exclude_lines = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["ukei"]
 
 [tool.mypy]
 python_version = "3.11"

@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 REGISTRY_RESOURCE = "air_quality_authoritative_sources.v1.json"
 COVERAGE_SCHEMA = "ukei_scc_air_quality_coverage_v1"
@@ -20,12 +21,30 @@ _ALLOWED_TIERS = {
 }
 
 
+def _registry_resource() -> Any:
+    return files("ukei.data").joinpath(REGISTRY_RESOURCE)
+
+
 def load_coverage_registry() -> dict[str, Any]:
     """Load and validate the packaged authoritative Air Quality coverage registry."""
-    resource = files("ukei.data").joinpath(REGISTRY_RESOURCE)
+    resource = _registry_resource()
     payload = json.loads(resource.read_text(encoding="utf-8"))
     validate_coverage_registry(payload)
-    return payload
+    return cast(dict[str, Any], payload)
+
+
+def _sha256_bytes(value: bytes) -> str:
+    return hashlib.sha256(value).hexdigest()
+
+
+def _canonical_sha256(value: object) -> str:
+    encoded = json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return _sha256_bytes(encoded)
 
 
 def validate_coverage_registry(payload: object) -> None:
@@ -69,8 +88,38 @@ def validate_coverage_registry(payload: object) -> None:
             raise ValueError(f"network source system is unknown: {network_id}")
         if network.get("quality_tier") not in _ALLOWED_TIERS:
             raise ValueError(f"invalid network quality tier: {network_id}")
-        if network.get("enumeration_status") not in {"MISSING", "IMPLEMENTED", "EXCEPTION_REVIEWED"}:
+        if network.get("enumeration_status") not in {
+            "MISSING",
+            "IMPLEMENTED",
+            "EXCEPTION_REVIEWED",
+        }:
             raise ValueError(f"invalid enumeration_status: {network_id}")
+
+    tools = payload.get("analysis_tools", [])
+    if not isinstance(tools, list):
+        raise ValueError("analysis_tools must be a list")
+    tool_ids: set[str] = set()
+    for tool in tools:
+        if not isinstance(tool, dict):
+            raise ValueError("analysis_tool entry must be an object")
+        tool_id = str(tool.get("id", "")).strip()
+        if not tool_id or tool_id in tool_ids:
+            raise ValueError("analysis_tool ids must be non-empty and unique")
+        tool_ids.add(tool_id)
+        if tool.get("canonical_evidence") is not False:
+            raise ValueError(f"analysis tool may not be canonical evidence: {tool_id}")
+
+    revisions = payload.get("historical_revision_rules", [])
+    if not isinstance(revisions, list):
+        raise ValueError("historical_revision_rules must be a list")
+    revision_ids: set[str] = set()
+    for rule in revisions:
+        if not isinstance(rule, dict):
+            raise ValueError("historical revision rule must be an object")
+        rule_id = str(rule.get("id", "")).strip()
+        if not rule_id or rule_id in revision_ids:
+            raise ValueError("historical revision rule ids must be non-empty and unique")
+        revision_ids.add(rule_id)
 
 
 def _read_manifest(path: str | Path) -> list[dict[str, str]]:
@@ -87,7 +136,9 @@ def _system_matches(row: dict[str, str], patterns: list[object]) -> bool:
             row.get("member_source_ids", ""),
         ]
     ).casefold()
-    return any(str(pattern).strip().casefold() in haystack for pattern in patterns if str(pattern).strip())
+    return any(
+        str(pattern).strip().casefold() in haystack for pattern in patterns if str(pattern).strip()
+    )
 
 
 def _row_count(rows: list[dict[str, str]], key: str, value: str) -> int:
@@ -100,7 +151,8 @@ def build_air_quality_coverage_report(
 ) -> dict[str, Any]:
     """Compare current harvestability evidence with the authoritative coverage registry."""
     registry = load_coverage_registry()
-    manifest = _read_manifest(manifest_path)
+    manifest_file = Path(manifest_path)
+    manifest = _read_manifest(manifest_file)
     output = Path(output_directory)
     output.mkdir(parents=True, exist_ok=True)
 
@@ -147,7 +199,9 @@ def build_air_quality_coverage_report(
                 "endpoint": str(system.get("endpoint", "")),
                 "endpoint_status": str(system.get("endpoint_status", "")),
                 "station_inventory_strategy": str(system.get("station_inventory_strategy", "")),
-                "historical_revision_expected": bool(system.get("historical_revision_expected", False)),
+                "historical_revision_expected": bool(
+                    system.get("historical_revision_expected", False)
+                ),
                 "completeness_note": str(system.get("completeness_note", "")),
             }
         )
@@ -180,10 +234,25 @@ def build_air_quality_coverage_report(
         writer.writeheader()
         writer.writerows(matrix)
 
+    required_source_ids = sorted(str(system["id"]) for system in required_systems)
+    network_ids = sorted(str(network["id"]) for network in registry["national_networks"])
+    analysis_tool_ids = sorted(
+        str(tool["id"]) for tool in registry.get("analysis_tools", []) if isinstance(tool, dict)
+    )
+    historical_revision_rule_ids = sorted(
+        str(rule["id"])
+        for rule in registry.get("historical_revision_rules", [])
+        if isinstance(rule, dict)
+    )
+    provider_count = len({row.get("provider", "") for row in manifest if row.get("provider")})
+
     receipt = {
         "schema": COVERAGE_SCHEMA,
         "registry_version": registry["registry_version"],
         "registry_reviewed_on": registry["reviewed_on"],
+        "registry_sha256": _sha256_bytes(_registry_resource().read_bytes()),
+        "manifest_sha256": _sha256_bytes(manifest_file.read_bytes()),
+        "manifest_provider_count": provider_count,
         "manifest_record_count": len(manifest),
         "manifest_air_context_count": _row_count(manifest, "air_context", "yes"),
         "manifest_candidate_for_test_count": _row_count(
@@ -191,14 +260,19 @@ def build_air_quality_coverage_report(
         ),
         "source_system_count": len(registry["source_systems"]),
         "required_source_system_count": len(required_systems),
+        "required_source_system_ids": required_source_ids,
         "required_source_systems_with_catalogue_signal": represented_required,
         "required_direct_connector_gap_count": len(required_direct_connector_gaps),
         "required_direct_connector_gaps": sorted(required_direct_connector_gaps),
         "national_network_count": len(registry["national_networks"]),
+        "national_network_ids": network_ids,
         "network_enumeration_gap_count": len(network_enumeration_gaps),
         "network_enumeration_gaps": sorted(network_enumeration_gaps),
         "network_count_conflicts": sorted(network_count_conflicts),
-        "historical_revision_rule_count": len(registry.get("historical_revision_rules", [])),
+        "historical_revision_rule_count": len(historical_revision_rule_ids),
+        "historical_revision_rule_ids": historical_revision_rule_ids,
+        "analysis_tool_count": len(analysis_tool_ids),
+        "analysis_tool_ids": analysis_tool_ids,
         "coverage_claim": registry["coverage_policy"]["fail_closed_status"],
         "governance": {
             "review_status": "REVIEW_REQUIRED",
@@ -210,6 +284,7 @@ def build_air_quality_coverage_report(
             ),
         },
     }
+    receipt["receipt_sha256"] = _canonical_sha256(receipt)
     (output / "authoritative-coverage-receipt.json").write_text(
         json.dumps(receipt, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

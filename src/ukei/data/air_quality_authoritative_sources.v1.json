@@ -574,5 +574,67 @@
       ],
       "rule": "Record instrument family and particle-size range; flag before/after comparisons across the 2023 SMPS replacements."
     }
+  ],
+  "analysis_tools": [
+    {
+      "id": "openair-v3",
+      "name": "openair 3 / openairmaps",
+      "role": "provider-independent UK network import, station metadata cross-check and established air-quality analysis",
+      "canonical_evidence": false,
+      "recommended_use": "Cross-check AURN, AQE, Scotland, Wales, Northern Ireland, local networks and LAQN; preserve source-network identity and normalize timestamp semantics.",
+      "cautions": [
+        "openair UK hourly data are date-beginning while some provider portals are date-ending; do not combine without explicit timestamp normalization."
+      ]
+    },
+    {
+      "id": "aeolus-aq",
+      "name": "Aeolus",
+      "role": "Python multi-network downloader and normalized station schema",
+      "canonical_evidence": false,
+      "recommended_use": "Independent Python cross-check for AURN, SAQN, WAQN, NI, AQE, LAQN, locally-managed monitoring and Breathe London.",
+      "cautions": [
+        "Treat its normalized output as a convenience layer; independently reacquire provider evidence for SCC/VVIP releases."
+      ]
+    },
+    {
+      "id": "deweather",
+      "name": "deweather",
+      "role": "Boosted-regression-tree meteorological normalisation",
+      "canonical_evidence": false,
+      "recommended_use": "Trend/intervention analysis after observation QA and method-period harmonisation.",
+      "cautions": [
+        "Model output is analytical evidence, not a replacement for observed concentrations or regulatory statistics."
+      ]
+    },
+    {
+      "id": "rmweather",
+      "name": "rmweather",
+      "role": "Random-forest meteorological normalisation and counterfactual modelling",
+      "canonical_evidence": false,
+      "recommended_use": "Independent sensitivity method for long-term trends and intervention/counterfactual analysis.",
+      "cautions": [
+        "Require held-out diagnostics, stable covariates and explicit uncertainty/limitations."
+      ]
+    },
+    {
+      "id": "duckdb-spatial",
+      "name": "DuckDB 1.5+ with spatial/GeoArrow support",
+      "role": "Local analytical store for station-time observations and geospatial joins",
+      "canonical_evidence": false,
+      "recommended_use": "Parquet/GeoParquet partitioning, reproducible station/time queries, CRS-aware spatial reconciliation and efficient historical analytics.",
+      "cautions": [
+        "Keep raw provider payload hashes and immutable landing zones outside derived analytical tables."
+      ]
+    },
+    {
+      "id": "pandera",
+      "name": "Pandera 0.33+",
+      "role": "Executable dataframe/PyArrow schema and data-quality contracts",
+      "canonical_evidence": false,
+      "recommended_use": "Validate pollutant units, timestamps, station identifiers, null policy, ranges, uniqueness, schema drift and Arrow/Parquet handoffs in CI.",
+      "cautions": [
+        "Schema validation establishes structural conformance, not scientific validity."
+      ]
+    }
   ]
 }
