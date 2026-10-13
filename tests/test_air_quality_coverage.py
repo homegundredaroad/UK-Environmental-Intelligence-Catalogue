@@ -104,9 +104,7 @@ def test_registry_covers_required_source_systems_and_national_networks() -> None
 
     assert set(networks) == EXPECTED_NETWORKS
     assert {
-        source_id
-        for source_id, system in systems.items()
-        if system["required_for_exhaustive"]
+        source_id for source_id, system in systems.items() if system["required_for_exhaustive"]
     } >= EXPECTED_REQUIRED_SYSTEMS
     assert systems["breathe-london-api"]["quality_tier"] == "LOW_COST_SENSOR"
     assert systems["openair-ukaq"]["quality_tier"] == "DERIVED_TOOL"
