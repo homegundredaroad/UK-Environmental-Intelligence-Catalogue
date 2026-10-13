@@ -11,16 +11,18 @@ import pytest
 import ukei.air_quality_station_inventory as inventory  # isort: skip
 
 
-CURRENT_HTML = """
+NETWORK_INFO_HTML = """
 <html><body>
 <p>Current sites: 2</p>
 <p>Total sites: 3</p>
 <p>Data availability: 01/01/2000 to 12/10/2026</p>
-<select>
-<option value="">Select</option>
-<option value="/networks/site-info?uka_id=UKA00001">Alpha (UKA00001)</option>
-<option value="/networks/site-info?uka_id=UKA00002">Beta (UKA00002)</option>
-</select>
+</body></html>
+"""
+
+CURRENT_HTML = """
+<html><body>
+<a href="/networks/site-info?site_id=ALP">Alpha</a>
+<a href="/networks/site-info?site_id=BET">Beta</a>
 </body></html>
 """
 
@@ -64,8 +66,8 @@ def test_station_link_parser_preserves_provider_ids() -> None:
         status="closed",
     )
 
-    assert [station.uka_id for station in current] == ["UKA00001", "UKA00002"]
-    assert current[0].identity == "uka:UKA00001"
+    assert {station.site_id for station in current} == {"ALP", "BET"}
+    assert {station.identity for station in current} == {"site:ALP", "site:BET"}
     assert {station.site_id for station in closed} == {"OLD1", "OLD2"}
     assert {station.identity for station in closed} == {"site:OLD1", "site:OLD2"}
     assert all(station.detail_url.startswith("https://uk-air.defra.gov.uk/") for station in closed)
@@ -87,7 +89,7 @@ def test_parser_accepts_uka_in_text_and_deduplicates() -> None:
 
 
 def test_network_summary_parses_counts_and_availability() -> None:
-    summary = inventory.parse_network_summary(CURRENT_HTML)
+    summary = inventory.parse_network_summary(NETWORK_INFO_HTML)
     assert summary["current_site_count"] == 2
     assert summary["total_site_count"] == 3
     assert summary["data_availability"].startswith("01/01/2000")
@@ -119,6 +121,8 @@ def test_build_aurn_inventory_writes_hashed_snapshot_and_continuity(tmp_path: Pa
         calls.append(url)
         assert timeout == 5.0
         assert retries == 1
+        if url == inventory.AURN_NETWORK_INFO_URL:
+            return _page(url, NETWORK_INFO_HTML, etag='"network"')
         if url == inventory.AURN_CURRENT_URL:
             return _page(url, CURRENT_HTML, etag='"current"')
         return _page(url, CLOSED_HTML)
@@ -135,19 +139,26 @@ def test_build_aurn_inventory_writes_hashed_snapshot_and_continuity(tmp_path: Pa
     assert first["current_count_reconciliation"] == "PASS"
     assert first["continuity"] is None
     assert first["governance"]["station_inventory_complete"] is False
-    assert calls == [inventory.AURN_CURRENT_URL, inventory.AURN_CLOSED_URL]
+    assert calls == [
+        inventory.AURN_NETWORK_INFO_URL,
+        inventory.AURN_CURRENT_URL,
+        inventory.AURN_CLOSED_URL,
+    ]
 
     snapshot_path = first_dir / "aurn-station-inventory.json"
     snapshot = json.loads(snapshot_path.read_text())
     assert len(snapshot["snapshot_sha256"]) == 64
-    assert snapshot["receipt"]["retrievals"][0]["etag"] == '"current"'
+    assert snapshot["receipt"]["retrievals"][0]["etag"] == '"network"'
+    assert snapshot["receipt"]["retrievals"][1]["etag"] == '"current"'
 
     changed_html = CURRENT_HTML.replace(
-        '<option value="/networks/site-info?uka_id=UKA00002">Beta (UKA00002)</option>',
+        '<a href="/networks/site-info?site_id=BET">Beta</a>',
         "",
     )
 
     def changed_fetch(url: str, timeout: float, retries: int) -> inventory.FetchedPage:
+        if url == inventory.AURN_NETWORK_INFO_URL:
+            return _page(url, NETWORK_INFO_HTML)
         body = changed_html if url == inventory.AURN_CURRENT_URL else CLOSED_HTML
         return _page(url, body)
 
@@ -158,7 +169,7 @@ def test_build_aurn_inventory_writes_hashed_snapshot_and_continuity(tmp_path: Pa
     )
     assert second["current_count_reconciliation"] == "REVIEW_REQUIRED"
     assert second["continuity"]["silent_disappearance_gate"] == "REVIEW_REQUIRED"
-    assert "uka:UKA00002" in second["continuity"]["missing_from_current_snapshot"]
+    assert "site:BET" in second["continuity"]["missing_from_current_snapshot"]
 
 
 def test_fetch_page_rejects_bad_budget_and_http(
