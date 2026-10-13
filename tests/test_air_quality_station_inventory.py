@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+from http.client import HTTPMessage
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 
@@ -174,7 +175,7 @@ def test_fetch_page_rejects_bad_budget_and_http(
         "https://example.test",
         429,
         "rate limited",
-        hdrs=None,
+        hdrs=HTTPMessage(),
         fp=io.BytesIO(b""),
     )
 
@@ -224,7 +225,7 @@ def test_fetch_page_records_headers_and_handles_transient_retry(
         return Response()
 
     monkeypatch.setattr(inventory, "urlopen", flaky)
-    monkeypatch.setattr(inventory.time, "sleep", lambda _: None)
+    monkeypatch.setattr("ukei.air_quality_station_inventory.time.sleep", lambda _: None)
     page = inventory.fetch_page("https://example.test", timeout_seconds=1, retries=1)
     assert attempts == 2
     assert page.receipt.status_code == 200
@@ -260,7 +261,7 @@ def test_fetch_page_fails_on_large_body_and_non_retryable_http(
         "https://example.test",
         404,
         "not found",
-        hdrs=None,
+        hdrs=HTTPMessage(),
         fp=io.BytesIO(b""),
     )
     monkeypatch.setattr(
@@ -277,7 +278,7 @@ def test_main_uses_builder(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    expected = {"schema": inventory.INVENTORY_SCHEMA}
+    expected: dict[str, object] = {"schema": inventory.INVENTORY_SCHEMA}
 
     def fake_build(*args: object, **kwargs: object) -> dict[str, object]:
         del args, kwargs
