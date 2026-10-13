@@ -52,8 +52,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          timeout="\${{ inputs.timeout_seconds }}"
-          retries="\${{ inputs.retries }}"
+          timeout="$AURN_TIMEOUT_SECONDS"
+          retries="$AURN_RETRIES"
           if [ "$timeout" -lt 2 ] || [ "$timeout" -gt 20 ]; then
             echo "timeout_seconds must be between 2 and 20" >&2
             exit 2
@@ -70,14 +70,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/aurn-inventory"
           args=(
             "$RUNNER_TEMP/aurn-inventory"
-            --timeout "\${{ inputs.timeout_seconds }}"
-            --retries "\${{ inputs.retries }}"
+            --timeout "$AURN_TIMEOUT_SECONDS"
+            --retries "$AURN_RETRIES"
           )
           previous="handoff/sccairquality/stations/aurn-station-inventory.json"
           if [ -f "$previous" ]; then
             args+=(--previous-inventory "$previous")
           fi
-          python -m ukei.air_quality_station_inventory "\${args[@]}"
+          python -m ukei.air_quality_station_inventory "${args[@]}"
 
       - name: Verify SCC and VVIP inventory boundary
         shell: bash
@@ -116,11 +116,11 @@ jobs:
           PY
 
       - name: Retain full station inventory evidence
-        if: \${{ always() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
           name: scc-airquality-aurn-station-inventory
-          path: \${{ runner.temp }}/aurn-inventory/
+          path: ${{ runner.temp }}/aurn-inventory/
           if-no-files-found: error
           retention-days: 90
 
