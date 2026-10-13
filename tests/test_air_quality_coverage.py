@@ -167,13 +167,10 @@ def test_coverage_report_exposes_connector_and_network_gaps(tmp_path: Path) -> N
     assert "openair-v3" in receipt["analysis_tool_ids"]
     assert "ratified-data-can-change" in receipt["historical_revision_rule_ids"]
 
-    matrix = list(
-        csv.DictReader(
-            (tmp_path / "out" / "authoritative-coverage-matrix.csv").open(
-                newline="", encoding="utf-8"
-            )
-        )
-    )
+    with (tmp_path / "out" / "authoritative-coverage-matrix.csv").open(
+        newline="", encoding="utf-8"
+    ) as handle:
+        matrix = list(csv.DictReader(handle))
     ukair = next(row for row in matrix if row["source_system_id"] == "ukair-sos")
     london = next(row for row in matrix if row["source_system_id"] == "londonair-api")
     breathe = next(row for row in matrix if row["source_system_id"] == "breathe-london-api")
