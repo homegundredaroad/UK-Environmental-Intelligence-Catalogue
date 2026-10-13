@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-import ukei.air_quality_coverage as air_quality_coverage
+import ukei.air_quality_coverage as air_quality_coverage  # isort: skip
 
 
 EXPECTED_NETWORKS = {
