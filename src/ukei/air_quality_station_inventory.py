@@ -18,9 +18,14 @@ from urllib.parse import parse_qs, urljoin, urlparse
 from urllib.request import Request, urlopen
 
 AURN_NETWORK_INFO_URL = "https://uk-air.defra.gov.uk/networks/network-info?view=aurn"
-AURN_CURRENT_URL = "https://uk-air.defra.gov.uk/latest/currentlevels"
+AURN_CURRENT_URL = (
+    "https://uk-air.defra.gov.uk/networks/find-sites?"
+    "action=results&country_id=9999&group_id=4&location_type=9999&pollutant="
+    "&region_id=9999&site_name=&view=advanced"
+)
+AURN_REPORTING_URL = "https://uk-air.defra.gov.uk/latest/currentlevels"
 AURN_CLOSED_URL = "https://uk-air.defra.gov.uk/networks/aurn-sites"
-INVENTORY_SCHEMA = "ukei_ukair_station_inventory_v1"
+INVENTORY_SCHEMA = "ukei_ukair_station_inventory_v2"
 _USER_AGENT = "SCC-AirQuality-Coverage-Audit/1.0 (+https://sccairquality.com)"
 _MAX_RESPONSE_BYTES = 4_000_000
 _UKA_RE = re.compile(r"\bUKA\d{5}\b", re.IGNORECASE)
@@ -46,6 +51,8 @@ class StationSeed:
     site_id: str
     detail_url: str
     source_url: str
+    latitude: str = ""
+    longitude: str = ""
 
     @property
     def identity(self) -> str:
@@ -113,6 +120,46 @@ class _StationLinkParser(HTMLParser):
             self._active_parts = []
 
 
+
+class _StationSearchParser(HTMLParser):
+    """Parse the server-rendered UK-AIR Network Site Search result table."""
+
+    def __init__(self, source_url: str) -> None:
+        super().__init__(convert_charrefs=True)
+        self.source_url = source_url
+        self._in_row = False
+        self._row_parts: list[str] = []
+        self._row_urls: list[str] = []
+        self.rows: list[tuple[str, tuple[str, ...]]] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        lowered = tag.casefold()
+        if lowered == "tr":
+            self._in_row = True
+            self._row_parts = []
+            self._row_urls = []
+            return
+        if not self._in_row or lowered != "a":
+            return
+        values = {key.casefold(): value or "" for key, value in attrs}
+        href = values.get("href", "")
+        if href:
+            self._row_urls.append(urljoin(self.source_url, href))
+
+    def handle_data(self, data: str) -> None:
+        if self._in_row:
+            self._row_parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag.casefold() != "tr" or not self._in_row:
+            return
+        text = " ".join(" ".join(self._row_parts).split())
+        self.rows.append((text, tuple(self._row_urls)))
+        self._in_row = False
+        self._row_parts = []
+        self._row_urls = []
+
+
 def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
@@ -169,6 +216,55 @@ def parse_ukair_station_links(
             site_id=site_id,
             detail_url=url,
             source_url=source_url,
+        )
+        stations.setdefault(seed.identity, seed)
+    return sorted(stations.values(), key=lambda item: (item.name.casefold(), item.identity))
+
+
+
+def parse_network_search_rows(
+    html: str,
+    *,
+    source_url: str,
+    network_id: str,
+) -> list[StationSeed]:
+    """Extract the active network roster with UK-AIR IDs and coordinates."""
+    parser = _StationSearchParser(source_url)
+    parser.feed(html)
+    stations: dict[str, StationSeed] = {}
+    row_pattern = re.compile(
+        r"^\s*\d+\s+(?P<name>.+?)\s+UK-AIR ID:\s*(?P<uka>UKA\d{5})"
+        r"\s+Location:\s*(?P<lat>-?\d+(?:\.\d+)?),\s*(?P<lon>-?\d+(?:\.\d+)?)",
+        re.IGNORECASE,
+    )
+    for text, urls in parser.rows:
+        match = row_pattern.search(text)
+        if not match:
+            continue
+        uka_id = match.group("uka").upper()
+        detail_url = next(
+            (
+                url
+                for url in urls
+                if "site-info" in urlparse(url).path.casefold()
+                and _query_id(url, "uka_id").upper() == uka_id
+            ),
+            "",
+        )
+        if not detail_url:
+            detail_url = (
+                "https://uk-air.defra.gov.uk/networks/site-info?provider=&uka_id=" + uka_id
+            )
+        seed = StationSeed(
+            network_id=network_id,
+            status="current_roster",
+            name=match.group("name").strip(),
+            uka_id=uka_id,
+            site_id="",
+            detail_url=detail_url,
+            source_url=source_url,
+            latitude=match.group("lat"),
+            longitude=match.group("lon"),
         )
         stations.setdefault(seed.identity, seed)
     return sorted(stations.values(), key=lambda item: (item.name.casefold(), item.identity))
@@ -260,6 +356,39 @@ def compare_station_snapshots(
     }
 
 
+def _seed_from_payload(raw: dict[str, Any]) -> StationSeed:
+    return StationSeed(
+        network_id=str(raw.get("network_id", "")),
+        status=str(raw.get("status", "")),
+        name=str(raw.get("name", "")),
+        uka_id=str(raw.get("uka_id", "")),
+        site_id=str(raw.get("site_id", "")),
+        detail_url=str(raw.get("detail_url", "")),
+        source_url=str(raw.get("source_url", "")),
+        latitude=str(raw.get("latitude", "")),
+        longitude=str(raw.get("longitude", "")),
+    )
+
+
+def _load_previous_current_roster(path: str | Path | None) -> list[StationSeed]:
+    if path is None or not Path(path).exists():
+        return []
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return []
+    raw_current = payload.get("current_roster")
+    if isinstance(raw_current, list):
+        return [_seed_from_payload(raw) for raw in raw_current if isinstance(raw, dict)]
+    legacy = payload.get("stations", [])
+    if not isinstance(legacy, list):
+        return []
+    return [
+        _seed_from_payload(raw)
+        for raw in legacy
+        if isinstance(raw, dict) and str(raw.get("status", "")) == "current"
+    ]
+
+
 def build_aurn_inventory(
     output_directory: str | Path,
     *,
@@ -268,75 +397,74 @@ def build_aurn_inventory(
     retries: int = 2,
     previous_inventory_path: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Build a current/closed AURN seed inventory with retrieval and continuity receipts."""
+    """Build separate AURN roster, latest-reporting and closed-reference inventories."""
     output = Path(output_directory)
     output.mkdir(parents=True, exist_ok=True)
+
     network_info_page = fetch_function(AURN_NETWORK_INFO_URL, timeout_seconds, retries)
     current_page = fetch_function(AURN_CURRENT_URL, timeout_seconds, retries)
+    reporting_page = fetch_function(AURN_REPORTING_URL, timeout_seconds, retries)
     closed_page = fetch_function(AURN_CLOSED_URL, timeout_seconds, retries)
 
     network_info_html = network_info_page.body.decode("utf-8", errors="replace")
     current_html = current_page.body.decode("utf-8", errors="replace")
+    reporting_html = reporting_page.body.decode("utf-8", errors="replace")
     closed_html = closed_page.body.decode("utf-8", errors="replace")
-    current = parse_ukair_station_links(
+
+    current_roster = parse_network_search_rows(
         current_html,
         source_url=AURN_CURRENT_URL,
         network_id="aurn",
-        status="current",
     )
-    closed = parse_ukair_station_links(
+    latest_reporting = parse_ukair_station_links(
+        reporting_html,
+        source_url=AURN_REPORTING_URL,
+        network_id="aurn",
+        status="latest_reporting",
+    )
+    closed_reference = parse_ukair_station_links(
         closed_html,
         source_url=AURN_CLOSED_URL,
         network_id="aurn",
-        status="closed",
+        status="closed_reference",
     )
     summary = parse_network_summary(network_info_html)
 
-    rows = [*current, *closed]
-    identities = [row.identity for row in rows]
-    duplicate_identities = sorted(
-        {identity for identity in identities if identities.count(identity) > 1}
-    )
-
-    previous: list[StationSeed] = []
-    if previous_inventory_path is not None and Path(previous_inventory_path).exists():
-        payload = json.loads(Path(previous_inventory_path).read_text(encoding="utf-8"))
-        raw_stations = payload.get("stations", []) if isinstance(payload, dict) else []
-        for raw in raw_stations:
-            if isinstance(raw, dict):
-                previous.append(
-                    StationSeed(
-                        network_id=str(raw.get("network_id", "")),
-                        status=str(raw.get("status", "")),
-                        name=str(raw.get("name", "")),
-                        uka_id=str(raw.get("uka_id", "")),
-                        site_id=str(raw.get("site_id", "")),
-                        detail_url=str(raw.get("detail_url", "")),
-                        source_url=str(raw.get("source_url", "")),
-                    )
-                )
-
-    continuity = compare_station_snapshots(previous, rows) if previous else None
+    previous = _load_previous_current_roster(previous_inventory_path)
+    continuity = compare_station_snapshots(previous, current_roster) if previous else None
     observed_current = summary.get("current_site_count")
     current_count_gate = (
         "PASS"
-        if isinstance(observed_current, int) and observed_current == len(current)
+        if isinstance(observed_current, int) and observed_current == len(current_roster)
         else "REVIEW_REQUIRED"
     )
+    reporting_gap = (
+        observed_current - len(latest_reporting)
+        if isinstance(observed_current, int) and observed_current >= len(latest_reporting)
+        else None
+    )
+    reporting_closed_site_ids = sorted(
+        {seed.site_id for seed in latest_reporting if seed.site_id}
+        & {seed.site_id for seed in closed_reference if seed.site_id}
+    )
+
     receipt = {
         "schema": INVENTORY_SCHEMA,
         "network_id": "aurn",
         "provider": "Department for Environment, Food and Rural Affairs",
-        "current_station_seed_count": len(current),
-        "closed_station_seed_count": len(closed),
-        "unique_station_seed_count": len(set(identities)),
-        "duplicate_identity_count": len(duplicate_identities),
-        "duplicate_identities": duplicate_identities,
+        "current_station_seed_count": len(current_roster),
+        "latest_reporting_station_seed_count": len(latest_reporting),
+        "closed_reference_seed_count": len(closed_reference),
+        "latest_reporting_gap_count": reporting_gap,
+        "reporting_closed_site_id_overlap_count": len(reporting_closed_site_ids),
+        "reporting_closed_site_id_overlaps": reporting_closed_site_ids,
         "provider_network_summary": summary,
         "current_count_reconciliation": current_count_gate,
+        "identity_crosswalk_status": "REVIEW_REQUIRED",
         "retrievals": [
             network_info_page.receipt.to_dict(),
             current_page.receipt.to_dict(),
+            reporting_page.receipt.to_dict(),
             closed_page.receipt.to_dict(),
         ],
         "continuity": continuity,
@@ -346,17 +474,25 @@ def build_aurn_inventory(
             "production_change_authorised": False,
             "station_inventory_complete": False,
             "claim_boundary": (
-                "This is a provider-native station seed inventory. Site detail, network "
-                "membership, "
-                "pollutant/method periods and historical identifiers require reconciliation before "
-                "AURN enumeration can be marked complete."
+                "Current network membership, latest reporting status and closed-site history are "
+                "separate provider concepts. UK-AIR/site IDs, network membership, pollutant/method "
+                "periods and historical identities require crosswalk reconciliation before AURN "
+                "enumeration can be marked complete."
             ),
         },
     }
     snapshot = {
         "schema": INVENTORY_SCHEMA,
         "network_id": "aurn",
-        "stations": [asdict(row) | {"identity": row.identity} for row in rows],
+        "current_roster": [
+            asdict(row) | {"identity": row.identity} for row in current_roster
+        ],
+        "latest_reporting": [
+            asdict(row) | {"identity": row.identity} for row in latest_reporting
+        ],
+        "closed_reference": [
+            asdict(row) | {"identity": row.identity} for row in closed_reference
+        ],
         "receipt": receipt,
     }
     snapshot["snapshot_sha256"] = hashlib.sha256(
