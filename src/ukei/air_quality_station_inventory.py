@@ -17,7 +17,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urljoin, urlparse
 from urllib.request import Request, urlopen
 
-AURN_CURRENT_URL = "https://uk-air.defra.gov.uk/networks/network-info?view=aurn"
+AURN_NETWORK_INFO_URL = "https://uk-air.defra.gov.uk/networks/network-info?view=aurn"
+AURN_CURRENT_URL = "https://uk-air.defra.gov.uk/latest/currentlevels"
 AURN_CLOSED_URL = "https://uk-air.defra.gov.uk/networks/aurn-sites"
 INVENTORY_SCHEMA = "ukei_ukair_station_inventory_v1"
 _USER_AGENT = "SCC-AirQuality-Coverage-Audit/1.0 (+https://sccairquality.com)"
@@ -270,9 +271,11 @@ def build_aurn_inventory(
     """Build a current/closed AURN seed inventory with retrieval and continuity receipts."""
     output = Path(output_directory)
     output.mkdir(parents=True, exist_ok=True)
+    network_info_page = fetch_function(AURN_NETWORK_INFO_URL, timeout_seconds, retries)
     current_page = fetch_function(AURN_CURRENT_URL, timeout_seconds, retries)
     closed_page = fetch_function(AURN_CLOSED_URL, timeout_seconds, retries)
 
+    network_info_html = network_info_page.body.decode("utf-8", errors="replace")
     current_html = current_page.body.decode("utf-8", errors="replace")
     closed_html = closed_page.body.decode("utf-8", errors="replace")
     current = parse_ukair_station_links(
@@ -287,7 +290,7 @@ def build_aurn_inventory(
         network_id="aurn",
         status="closed",
     )
-    summary = parse_network_summary(current_html)
+    summary = parse_network_summary(network_info_html)
 
     rows = [*current, *closed]
     identities = [row.identity for row in rows]
@@ -332,6 +335,7 @@ def build_aurn_inventory(
         "provider_network_summary": summary,
         "current_count_reconciliation": current_count_gate,
         "retrievals": [
+            network_info_page.receipt.to_dict(),
             current_page.receipt.to_dict(),
             closed_page.receipt.to_dict(),
         ],
