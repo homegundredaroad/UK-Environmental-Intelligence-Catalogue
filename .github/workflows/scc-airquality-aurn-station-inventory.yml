@@ -1,0 +1,153 @@
+name: Audit AURN Station Inventory
+
+on:
+  workflow_dispatch:
+    inputs:
+      timeout_seconds:
+        description: Per-request timeout in seconds (2-20)
+        required: false
+        default: 8
+        type: number
+      retries:
+        description: Transient retry count (0-3; HTTP 429 is never retried)
+        required: false
+        default: 2
+        type: number
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scc-airquality-aurn-station-inventory
+  cancel-in-progress: false
+
+jobs:
+  inventory:
+    name: Build provider-native AURN station inventory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install catalogue package
+        run: python -m pip install --upgrade pip && python -m pip install .
+
+      - name: Validate bounded request policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          timeout="\${{ inputs.timeout_seconds }}"
+          retries="\${{ inputs.retries }}"
+          if [ "$timeout" -lt 2 ] || [ "$timeout" -gt 20 ]; then
+            echo "timeout_seconds must be between 2 and 20" >&2
+            exit 2
+          fi
+          if [ "$retries" -lt 0 ] || [ "$retries" -gt 3 ]; then
+            echo "retries must be between 0 and 3" >&2
+            exit 2
+          fi
+
+      - name: Build AURN station inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/aurn-inventory"
+          args=(
+            "$RUNNER_TEMP/aurn-inventory"
+            --timeout "\${{ inputs.timeout_seconds }}"
+            --retries "\${{ inputs.retries }}"
+          )
+          previous="handoff/sccairquality/stations/aurn-station-inventory.json"
+          if [ -f "$previous" ]; then
+            args+=(--previous-inventory "$previous")
+          fi
+          python -m ukei.air_quality_station_inventory "\${args[@]}"
+
+      - name: Verify SCC and VVIP inventory boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt_path = (
+              Path(os.environ["RUNNER_TEMP"])
+              / "aurn-inventory"
+              / "aurn-station-inventory-receipt.json"
+          )
+          receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+          governance = receipt["governance"]
+          assert governance["review_status"] == "REVIEW_REQUIRED"
+          assert governance["scientific_admissibility_conferred"] is False
+          assert governance["production_change_authorised"] is False
+          assert governance["station_inventory_complete"] is False
+          if receipt["current_station_seed_count"] <= 0:
+              raise SystemExit("No current AURN station seeds were discovered")
+          if receipt["unique_station_seed_count"] <= 0:
+              raise SystemExit("No unique AURN station identities were discovered")
+          continuity = receipt.get("continuity")
+          if continuity and continuity["silent_disappearance_gate"] != "PASS":
+              print(
+                  "::warning::Previously observed station identities are absent; "
+                  "manual review is required before any registry status change."
+              )
+          print(
+              "PASS: provider-native AURN seed inventory built; "
+              "scientific and completeness claims remain gated."
+          )
+          PY
+
+      - name: Retain full station inventory evidence
+        if: \${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: scc-airquality-aurn-station-inventory
+          path: \${{ runner.temp }}/aurn-inventory/
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish run summary
+        if: \${{ always() }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt_path = (
+              Path(os.environ["RUNNER_TEMP"])
+              / "aurn-inventory"
+              / "aurn-station-inventory-receipt.json"
+          )
+          if not receipt_path.exists():
+              raise SystemExit(0)
+          receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as fh:
+              fh.write("# AURN station inventory audit\n\n")
+              fh.write(
+                  f"Current station seeds: **{receipt['current_station_seed_count']}**\n\n"
+              )
+              fh.write(
+                  f"Closed station seeds: **{receipt['closed_station_seed_count']}**\n\n"
+              )
+              fh.write(
+                  f"Unique station identities: **{receipt['unique_station_seed_count']}**\n\n"
+              )
+              fh.write(
+                  "Provider current-count reconciliation: "
+                  f"**{receipt['current_count_reconciliation']}**\n\n"
+              )
+              fh.write("Scientific admissibility conferred: **no**\n\n")
+              fh.write("Inventory completeness claimed: **no**\n")
+          PY
