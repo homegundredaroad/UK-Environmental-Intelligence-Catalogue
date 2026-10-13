@@ -8,7 +8,7 @@ import hashlib
 import json
 from importlib.resources import files
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 REGISTRY_RESOURCE = "air_quality_authoritative_sources.v1.json"
 COVERAGE_SCHEMA = "ukei_scc_air_quality_coverage_v1"
@@ -30,7 +30,7 @@ def load_coverage_registry() -> dict[str, Any]:
     resource = _registry_resource()
     payload = json.loads(resource.read_text(encoding="utf-8"))
     validate_coverage_registry(payload)
-    return payload
+    return cast(dict[str, Any], payload)
 
 
 def _sha256_bytes(value: bytes) -> str:
