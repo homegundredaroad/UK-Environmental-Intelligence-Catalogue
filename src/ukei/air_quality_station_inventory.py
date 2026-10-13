@@ -226,7 +226,8 @@ def fetch_page(url: str, timeout_seconds: float = 8.0, retries: int = 2) -> Fetc
         except HTTPError as exc:
             last_error = f"HTTP {exc.code}"
             if exc.code == 429:
-                raise InventoryError("provider rate limited inventory request; no same-run retry") from exc
+                message = "provider rate limited inventory request; no same-run retry"
+                raise InventoryError(message) from exc
             if exc.code < 500 or attempt >= retries:
                 raise InventoryError(f"inventory request failed: {last_error}") from exc
         except (URLError, TimeoutError, OSError) as exc:
@@ -341,7 +342,8 @@ def build_aurn_inventory(
             "production_change_authorised": False,
             "station_inventory_complete": False,
             "claim_boundary": (
-                "This is a provider-native station seed inventory. Site detail, network membership, "
+                "This is a provider-native station seed inventory. Site detail, network "
+                "membership, "
                 "pollutant/method periods and historical identifiers require reconciliation before "
                 "AURN enumeration can be marked complete."
             ),
