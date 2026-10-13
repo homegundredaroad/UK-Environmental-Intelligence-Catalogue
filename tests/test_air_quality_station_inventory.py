@@ -94,8 +94,12 @@ def test_network_summary_parses_counts_and_availability() -> None:
 
 def test_snapshot_comparison_never_turns_absence_into_closure() -> None:
     previous = [
-        inventory.StationSeed("aurn", "current", "Alpha", "UKA00001", "", "https://x/1", "https://x"),
-        inventory.StationSeed("aurn", "current", "Beta", "UKA00002", "", "https://x/2", "https://x"),
+        inventory.StationSeed(
+            "aurn", "current", "Alpha", "UKA00001", "", "https://x/1", "https://x"
+        ),
+        inventory.StationSeed(
+            "aurn", "current", "Beta", "UKA00002", "", "https://x/2", "https://x"
+        ),
     ]
     current = [previous[0]]
     receipt = inventory.compare_station_snapshots(previous, current)
