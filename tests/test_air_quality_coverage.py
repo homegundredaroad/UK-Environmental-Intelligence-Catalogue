@@ -117,6 +117,8 @@ def test_registry_covers_required_source_systems_and_national_networks() -> None
     assert systems["openair-ukaq"]["quality_tier"] == "DERIVED_TOOL"
     assert networks["national-ammonia"]["enumeration_status"] == "MISSING"
     assert registry["coverage_policy"]["fail_closed_status"].startswith("INCOMPLETE_")
+    tool_ids = {tool["id"] for tool in registry["analysis_tools"]}
+    assert {"openair-v3", "aeolus-aq", "duckdb-spatial", "pandera"} <= tool_ids
 
 
 def test_registry_validation_fails_closed() -> None:
@@ -157,6 +159,10 @@ def test_coverage_report_exposes_connector_and_network_gaps(tmp_path: Path) -> N
     receipt = build_air_quality_coverage_report(manifest, tmp_path / "out")
 
     assert receipt["manifest_record_count"] == 3
+    assert receipt["manifest_provider_count"] == 3
+    assert len(receipt["manifest_sha256"]) == 64
+    assert len(receipt["registry_sha256"]) == 64
+    assert len(receipt["receipt_sha256"]) == 64
     assert receipt["manifest_air_context_count"] == 2
     assert receipt["manifest_candidate_for_test_count"] == 1
     assert receipt["required_direct_connector_gap_count"] == len(EXPECTED_REQUIRED_SYSTEMS)
@@ -165,6 +171,8 @@ def test_coverage_report_exposes_connector_and_network_gaps(tmp_path: Path) -> N
     assert set(receipt["network_enumeration_gaps"]) == EXPECTED_NETWORKS
     assert receipt["governance"]["completeness_may_be_claimed"] is False
     assert receipt["governance"]["scientific_admissibility_conferred"] is False
+    assert "openair-v3" in receipt["analysis_tool_ids"]
+    assert "ratified-data-can-change" in receipt["historical_revision_rule_ids"]
 
     matrix = list(
         csv.DictReader(
