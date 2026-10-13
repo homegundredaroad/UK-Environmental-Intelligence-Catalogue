@@ -1,6 +1,11 @@
 name: Audit AURN Station Inventory
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/scc-airquality-aurn-station-inventory.yml"
+      - "src/ukei/air_quality_station_inventory.py"
   workflow_dispatch:
     inputs:
       timeout_seconds:
