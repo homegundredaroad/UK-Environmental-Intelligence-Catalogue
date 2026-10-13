@@ -137,9 +137,7 @@ def _system_matches(row: dict[str, str], patterns: list[object]) -> bool:
         ]
     ).casefold()
     return any(
-        str(pattern).strip().casefold() in haystack
-        for pattern in patterns
-        if str(pattern).strip()
+        str(pattern).strip().casefold() in haystack for pattern in patterns if str(pattern).strip()
     )
 
 
