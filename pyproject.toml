@@ -68,6 +68,7 @@ exclude_lines = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
