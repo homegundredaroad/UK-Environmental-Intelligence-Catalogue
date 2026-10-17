@@ -100,6 +100,7 @@ def build_handoff(
     output_dir: str | Path,
     *,
     validation_path: str | Path | None = None,
+    authoritative_registry_path: str | Path | None = None,
     run_receipt_path: str | Path | None = None,
     upstream_run_id: str = "",
     upstream_artifact_id: str = "",
@@ -126,6 +127,35 @@ def build_handoff(
             "source_sha256": _sha256_bytes(validation_path.read_bytes()),
             "handoff_sha256": val_sha,
             "compressed_bytes": val_size,
+        }
+
+    authoritative_registry_meta: dict[str, Any] | None = None
+    authoritative_registry_redactions = 0
+    if authoritative_registry_path and Path(authoritative_registry_path).exists():
+        authoritative_registry_path = Path(authoritative_registry_path)
+        registry = _load(authoritative_registry_path)
+        if not isinstance(registry, dict):
+            raise ValueError("Authoritative air-quality registry must be a JSON object")
+        source_systems = registry.get("source_systems")
+        national_networks = registry.get("national_networks")
+        revision_rules = registry.get("historical_revision_rules")
+        if not isinstance(source_systems, list) or not isinstance(national_networks, list):
+            raise ValueError("Authoritative air-quality registry is missing source_systems/national_networks")
+        safe_registry, authoritative_registry_redactions = _sanitise(registry)
+        reg_out = output / "authoritative-air-quality-registry.json.gz"
+        reg_sha, reg_size = _write_gzip_json(reg_out, safe_registry)
+        authoritative_registry_meta = {
+            "registry_version": registry.get("registry_version"),
+            "reviewed_on": registry.get("reviewed_on"),
+            "source_system_count": len(source_systems),
+            "national_network_count": len(national_networks),
+            "historical_revision_rule_count": len(revision_rules) if isinstance(revision_rules, list) else 0,
+            "required_source_system_count": sum(bool(row.get("required_for_exhaustive")) for row in source_systems if isinstance(row, dict)),
+            "missing_direct_connector_count": sum(str(row.get("direct_connector_status") or "").upper() != "IMPLEMENTED" and bool(row.get("required_for_exhaustive")) for row in source_systems if isinstance(row, dict)),
+            "missing_network_enumeration_count": sum(str(row.get("enumeration_status") or "").upper() != "IMPLEMENTED" for row in national_networks if isinstance(row, dict)),
+            "source_sha256": _sha256_bytes(authoritative_registry_path.read_bytes()),
+            "handoff_sha256": reg_sha,
+            "compressed_bytes": reg_size,
         }
 
     run_receipt = (
@@ -159,10 +189,12 @@ def build_handoff(
             "compressed_bytes": cat_size,
         },
         "validation": validation_meta,
+        "authoritative_registry": authoritative_registry_meta,
         "security": {
-            "sensitive_url_values_redacted": catalogue_redactions + validation_redactions,
+            "sensitive_url_values_redacted": catalogue_redactions + validation_redactions + authoritative_registry_redactions,
             "catalogue_redactions": catalogue_redactions,
             "validation_redactions": validation_redactions,
+            "authoritative_registry_redactions": authoritative_registry_redactions,
             "raw_payload_published": False,
         },
         "governance": {
@@ -187,6 +219,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--catalogue", required=True)
     parser.add_argument("--validation")
+    parser.add_argument("--authoritative-registry")
     parser.add_argument("--run-receipt")
     parser.add_argument("--output", required=True)
     parser.add_argument("--upstream-run-id", default="")
@@ -197,6 +230,7 @@ def main(argv: list[str] | None = None) -> int:
         args.catalogue,
         args.output,
         validation_path=args.validation,
+        authoritative_registry_path=args.authoritative_registry,
         run_receipt_path=args.run_receipt,
         upstream_run_id=args.upstream_run_id,
         upstream_artifact_id=args.upstream_artifact_id,
