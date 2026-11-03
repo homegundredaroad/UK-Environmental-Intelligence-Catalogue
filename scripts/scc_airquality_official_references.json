@@ -1,0 +1,54 @@
+{
+  "schema": "scc-airquality-curated-source-leads/1",
+  "description": "Curated official source entry points for independent scientific/regulatory source review only. Does not confer a licence or verify any measurements.",
+  "sources": [
+    {
+      "id": "ea-incinerator-annual",
+      "title": "Incinerator Annual Monitoring Reporting 2015-2025",
+      "publisher": "Environment Agency",
+      "url": "https://environment.data.gov.uk/dataset/3500ab14-6546-45cf-acb2-c2a40e350737",
+      "priority": "P0",
+      "licence_position": "EA_CONDITIONAL_LICENCE_REVIEW"
+    },
+    {
+      "id": "ea-public-register",
+      "title": "Public Register of Environmental Information",
+      "publisher": "Environment Agency",
+      "url": "https://environment.data.gov.uk/public-register/view/index",
+      "priority": "P0",
+      "licence_position": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "defra-aurn-qaqc",
+      "title": "AURN annual technical QAQC reports",
+      "publisher": "Defra and Environment Agency",
+      "url": "https://www.gov.uk/government/publications/automatic-urban-and-rural-network-aurn-technical-reports",
+      "priority": "P0",
+      "licence_position": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "defra-air-pollution",
+      "title": "Get air pollution data",
+      "publisher": "Defra",
+      "url": "https://get-air-pollution-data.service.gov.uk/",
+      "priority": "P0",
+      "licence_position": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "ea-waste-2025",
+      "title": "2025 Waste Data Interrogator",
+      "publisher": "Environment Agency",
+      "url": "https://www.data.gov.uk/dataset/b90c23d6-3bf7-4e6d-9d7b-304dc2640c27/2025-waste-data-interrogator",
+      "priority": "P1",
+      "licence_position": "REVIEW_REQUIRED"
+    },
+    {
+      "id": "defra-aurn-guidance",
+      "title": "AURN monitoring and quality assurance guidance",
+      "publisher": "Defra",
+      "url": "https://www.gov.uk/guidance/air-pollution-monitoring-automatic-urban-and-rural-network-aurn",
+      "priority": "P0",
+      "licence_position": "REVIEW_REQUIRED"
+    }
+  ]
+}
