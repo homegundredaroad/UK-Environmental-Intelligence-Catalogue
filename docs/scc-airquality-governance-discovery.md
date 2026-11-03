@@ -27,3 +27,31 @@ All discoveries remain **CANDIDATE_METADATA_ONLY**, with `compliance_conclusion_
 The Environment Agency's [incinerator annual monitoring library](https://environment.data.gov.uk/dataset/3500ab14-6546-45cf-acb2-c2a40e350737) uses a **conditional licence**, so the reports must not be blindly republished as public research downloads.
 
 This workflow is a complement to SCC Air Quality's independently versioned governance workbench and to the general UKEI comprehensive discovery scan, not a replacement for either.
+
+## Live scan #1 findings and transparency controls (2026-11-03)
+
+The first attached run was operationally successful: ten query reports, 300 unique
+candidate records, no provider exceptions. Its coverage receipts also show seven
+truncated CKAN searches. For example, the `air quality monitoring` query returned
+40 of 1,385 matching catalogue entries, not 1,385 inspected records. This is a
+bounded sample, **not comprehensive source discovery**.
+
+Subsequent runs generate a human inspection queue
+(`scc_airquality_review_queue.csv`) with title-only heuristic review priorities
+P0–P3, and `scc_airquality_coverage_warnings.json` with explicit provider/query
+truncation. The manifest contains the SHA-256 of both new artifacts, a
+`provider_coverage_complete` Boolean, and
+`national_coverage_verified=false`. This review queue is *not* a verified
+dataset list, machine validation of licence permissions, or a scientific report.
+
+A green GitHub Actions run means the bounded discovery and receipts succeeded,
+not that the underlying providers' catalogues were exhaustively scanned.
+Unknown or unreported source resource lists remain distinguishable from
+explicitly empty resource lists. Candidate metadata can contain misleading
+titles: review priorities are not scientific scores.
+
+Data dictionary and validation requirements should be reviewed by an independent
+scientist before adding measurement harmonisation or permit comparisons. In
+particular, stack emission concentrations (often mg/Nm3 at a specified oxygen,
+moisture, temperature and pressure basis) and ambient concentrations (often
+micrograms/m3) must never be compared as if they were interchangeable.

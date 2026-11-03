@@ -109,3 +109,59 @@ def test_invalid_provenance_hash_is_rejected(tmp_path: Path) -> None:
     file.write_text(json.dumps(report))
     manifest = summarize_discovery(inp, out)
     assert manifest["status"] == "INCOMPLETE_DISCOVERY"
+
+
+def test_review_queue_rejects_scientific_promotion(tmp_path: Path) -> None:
+    import csv
+
+    inp, out = tmp_path / "in", tmp_path / "out"
+    _write_receipts(inp)
+    manifest = summarize_discovery(inp, out)
+    assert manifest["review_priority_counts"]["P3"] == 1
+    assert manifest["truncated_provider_query_count"] == 0
+    assert manifest["provider_coverage_complete"]
+    assert not manifest["national_coverage_verified"]
+    with (out / "scc_airquality_review_queue.csv").open() as source:
+        row = next(csv.DictReader(source))
+    assert row["scientific_status"] == "CANDIDATE_METADATA_ONLY"
+    assert row["regulatory_conclusion_allowed"] == "FALSE"
+    assert (
+        manifest["review_queue_sha256"]
+        == hashlib.sha256((out / "scc_airquality_review_queue.csv").read_bytes()).hexdigest()
+    )
+
+
+def test_truncated_provider_is_visible_not_comprehensive(tmp_path: Path) -> None:
+    inp, out = tmp_path / "in", tmp_path / "out"
+    _write_receipts(inp)
+    file = inp / "03.json"
+    report = json.loads(file.read_text())
+    report["provider_coverage"]["ckan:data.gov.uk"] = {
+        "complete": False,
+        "truncated_by_limit": True,
+        "provider_total": 1385,
+        "records_returned": 40,
+    }
+    file.write_text(json.dumps(report))
+    manifest = summarize_discovery(inp, out)
+    assert manifest["status"] == "CANDIDATE_DISCOVERY_ONLY"
+    assert manifest["truncated_provider_query_count"] == 1
+    assert not manifest["provider_coverage_complete"]
+    warning = json.loads((out / "scc_airquality_coverage_warnings.json").read_text())
+    assert warning["truncated_provider_queries"][0]["provider_total"] == 1385
+    assert not warning["national_coverage_verified"]
+
+
+def test_review_queue_escapes_formula_titles(tmp_path: Path) -> None:
+    import csv
+
+    inp, out = tmp_path / "in", tmp_path / "out"
+    _write_receipts(inp)
+    file = inp / "00.json"
+    report = json.loads(file.read_text())
+    report["candidates"][0]["source"]["title"] = '=HYPERLINK("https://example.org")'
+    file.write_text(json.dumps(report))
+    summarize_discovery(inp, out)
+    with (out / "scc_airquality_review_queue.csv").open() as source:
+        rows = list(csv.DictReader(source))
+    assert any(row["title"].startswith("'=") for row in rows)
