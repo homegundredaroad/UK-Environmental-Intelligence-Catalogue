@@ -34,8 +34,13 @@ PRIORITY_P0 = (
     "pollution inventory",
 )
 PRIORITY_P1 = (
-    "air quality", "air pollution", "incinerat", "emission",
-    "environmental permit", "industrial installation", "air pollutant",
+    "air quality",
+    "air pollution",
+    "incinerat",
+    "emission",
+    "environmental permit",
+    "industrial installation",
+    "air pollutant",
     "monitoring station",
 )
 PRIORITY_P2 = ("pollution", "waste", "regulat", "environment", "monitor")
@@ -59,7 +64,6 @@ def _csv_cell(value: object) -> str:
     if text.lstrip().startswith(("=", "+", "-", "@", "\t", "\r")):
         return "'" + text
     return text
-
 
 
 def _write_json(path: Path, payload: object) -> str:
@@ -191,54 +195,71 @@ def summarize_discovery(input_dir: Path, output_dir: Path) -> dict[str, Any]:
             if not isinstance(provider_info, dict):
                 errors.append("invalid provider coverage record")
                 continue
-            if provider_info.get("truncated_by_limit") or (
-                provider_info.get("complete") is False
-            ):
-                truncated_queries.append({
-                    "query": receipt["query"],
-                    "provider": provider,
-                    "provider_total": provider_info.get("provider_total"),
-                    "records_returned": provider_info.get("records_returned"),
-                    "reason": "bounded_or_incomplete_provider_search",
-                })
+            if provider_info.get("truncated_by_limit") or (provider_info.get("complete") is False):
+                truncated_queries.append(
+                    {
+                        "query": receipt["query"],
+                        "provider": provider,
+                        "provider_total": provider_info.get("provider_total"),
+                        "records_returned": provider_info.get("records_returned"),
+                        "reason": "bounded_or_incomplete_provider_search",
+                    }
+                )
 
     # Deterministic candidate-only review ordering, separate from discovery status.
     review: list[dict[str, str]] = []
     for row in rows:
         rank, basis = _review_priority(row["title"])
         licence = row["declared_licence"].casefold()
-        unknown_licence = any(
-            text in licence for text in ("unknown", "not supplied", "not specified")
-        ) or not licence.strip()
+        unknown_licence = (
+            any(text in licence for text in ("unknown", "not supplied", "not specified"))
+            or not licence.strip()
+        )
         count = row["resource_count"]
         resource_evidence = (
-            "NOT_IN_SOURCE_METADATA" if count is None else
-            "NO_LISTED_RESOURCE" if count == 0 else "LISTED_NOT_VERIFIED"
+            "NOT_IN_SOURCE_METADATA"
+            if count is None
+            else "NO_LISTED_RESOURCE"
+            if count == 0
+            else "LISTED_NOT_VERIFIED"
         )
-        review.append({
-            "review_priority": rank,
-            "priority_basis": basis,
-            "title": row["title"],
-            "publisher": row["publisher"],
-            "source_url": row["source_url"],
-            "matched_queries": " | ".join(row["matched_queries"]),
-            "licence_evidence": (
-                "NOT_SUPPLIED" if unknown_licence else "DECLARED_NOT_VERIFIED"
-            ),
-            "resource_evidence": resource_evidence,
-            "scientific_status": "CANDIDATE_METADATA_ONLY",
-            "measurements_comparable": "FALSE",
-            "regulatory_conclusion_allowed": "FALSE",
-        })
+        review.append(
+            {
+                "review_priority": rank,
+                "priority_basis": basis,
+                "title": row["title"],
+                "publisher": row["publisher"],
+                "source_url": row["source_url"],
+                "matched_queries": " | ".join(row["matched_queries"]),
+                "licence_evidence": (
+                    "NOT_SUPPLIED" if unknown_licence else "DECLARED_NOT_VERIFIED"
+                ),
+                "resource_evidence": resource_evidence,
+                "scientific_status": "CANDIDATE_METADATA_ONLY",
+                "measurements_comparable": "FALSE",
+                "regulatory_conclusion_allowed": "FALSE",
+            }
+        )
     review.sort(key=lambda x: (x["review_priority"], x["title"].casefold(), x["source_url"]))
     queue_path = output_dir / "scc_airquality_review_queue.csv"
     with queue_path.open("w", newline="", encoding="utf-8") as stream:
-        fields = list(review[0]) if review else [
-            "review_priority", "priority_basis", "title", "publisher", "source_url",
-            "matched_queries", "licence_evidence", "resource_evidence",
-            "scientific_status", "measurements_comparable",
-            "regulatory_conclusion_allowed",
-        ]
+        fields = (
+            list(review[0])
+            if review
+            else [
+                "review_priority",
+                "priority_basis",
+                "title",
+                "publisher",
+                "source_url",
+                "matched_queries",
+                "licence_evidence",
+                "resource_evidence",
+                "scientific_status",
+                "measurements_comparable",
+                "regulatory_conclusion_allowed",
+            ]
+        )
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
         for item in review:
@@ -290,9 +311,9 @@ def summarize_discovery(input_dir: Path, output_dir: Path) -> dict[str, Any]:
         "candidate_register_sha256": candidate_hash,
         "review_queue_sha256": queue_hash,
         "coverage_warnings_sha256": gaps_hash,
-        "review_priority_counts": dict(sorted(Counter(
-            item["review_priority"] for item in review
-        ).items())),
+        "review_priority_counts": dict(
+            sorted(Counter(item["review_priority"] for item in review).items())
+        ),
         "truncated_provider_query_count": len(truncated_queries),
         "provider_coverage_complete": not truncated_queries,
         "national_coverage_verified": False,
