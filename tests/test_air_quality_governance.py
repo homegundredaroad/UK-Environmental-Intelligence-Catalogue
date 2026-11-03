@@ -157,7 +157,7 @@ def test_review_queue_escapes_formula_titles(tmp_path: Path) -> None:
 
     inp, out = tmp_path / "in", tmp_path / "out"
     _write_receipts(inp)
-    file = inp / "04.json"
+    file = inp / "00.json"
     report = json.loads(file.read_text())
     report["candidates"][0]["source"]["title"] = '=HYPERLINK("https://example.org")'
     file.write_text(json.dumps(report))
