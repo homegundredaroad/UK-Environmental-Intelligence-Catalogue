@@ -1,0 +1,130 @@
+name: SCC Air Quality governance source discovery
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Small monthly metadata scan, not scientific publication.
+    - cron: '23 4 5 * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scc-airquality-governance-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install existing UKEI CLI
+        run: python -m pip install .
+      - name: Discover bounded air-quality governance sources
+        shell: bash
+        env:
+          UKEI_HTTP_TIMEOUT_SECONDS: '12'
+        run: |
+          set -euo pipefail
+          mkdir -p airquality-governance/discovery
+          : > airquality-governance/failed_queries.txt
+          db="$RUNNER_TEMP/scc-airquality-governance.sqlite3"
+          ukei --database "$db" init
+          i=0
+          for query in \
+            'industrial emissions' 'waste incineration' 'pollution inventory' \
+            'air quality monitoring' 'air pollution monitoring' 'environmental permitting' \
+            'continuous emissions monitoring' 'air quality calibration' \
+            'compliance assessment' 'industrial installations'; do
+            name=$(printf '%02d' "$i")
+            i=$((i+1))
+            if ! ukei --database "$db" discover \
+              --provider all --query "$query" --limit 40 \
+              --output "airquality-governance/discovery/$name.json" \
+              --import-candidates; then
+              printf '%s\n' "$query" >> airquality-governance/failed_queries.txt
+            fi
+          done
+      - name: Build provenance receipts and review-only candidate register
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=$(find airquality-governance/discovery -maxdepth 1 -name '*.json' | wc -l)
+          test "$count" -gt 0
+          jq -es 'all(.[]; .report_version == 3 and (.query | type == "string") and
+                   (.candidates | type == "array") and
+                   (.candidate_count == (.candidates | length)) and
+                   (.candidates | all(.[]; .source.status == "candidate")))' \
+            airquality-governance/discovery/*.json > /dev/null
+          jq -s '{
+            schema: "scc-airquality-catalogue-query-receipts/1",
+            queries: [.[] | {
+              query, candidate_count, provider_counts, provider_coverage,
+              duplicates_removed, errors, started_at, completed_at
+            }],
+            reports: length,
+            source_candidates_before_cross_query_dedup: ([.[].candidate_count] | add),
+            provider_errors: [.[].errors[]]
+          }' airquality-governance/discovery/*.json \
+            > airquality-governance/query_coverage_receipts.json
+          jq -s '[.[] | .query as $q | .candidates[] | . + {matched_query: $q}]
+            | group_by(.source.url) | map({
+              source_id: .[0].source.source_id,
+              title: .[0].source.title,
+              url: .[0].source.url,
+              publisher: .[0].source.publisher,
+              declared_licence: .[0].source.licence,
+              resource_count: (.[0].source.resources | length),
+              source_metadata_hashes: (map(.metadata_hash) | unique),
+              discovery_providers: (map(.provider) | unique),
+              matched_queries: (map(.matched_query) | unique),
+              status: "CANDIDATE_METADATA_ONLY",
+              instrument_qaqc_verified: false,
+              permit_and_effective_limits_verified: false,
+              measurements_comparable: false,
+              licence_reuse_cleared: false,
+              compliance_conclusion_allowed: false
+            })' airquality-governance/discovery/*.json \
+            > airquality-governance/scc_airquality_candidate_sources.json
+          jq -n --slurpfile coverage airquality-governance/query_coverage_receipts.json \
+            --slurpfile candidates airquality-governance/scc_airquality_candidate_sources.json \
+            --rawfile failures airquality-governance/failed_queries.txt '{
+              schema: "scc-airquality-governance-source-scan/1",
+              source_scope: "CKAN and ArcGIS discovery metadata only",
+              queries_completed: $coverage[0].reports,
+              unique_candidate_sources: ($candidates[0] | length),
+              provider_errors: $coverage[0].provider_errors,
+              failed_queries: ($failures | split("\n") | map(select(length > 0))),
+              public_release_allowed: false,
+              legal_noncompliance_established: false,
+              licence_redistribution_authorised: false,
+              status: (if (($coverage[0].provider_errors | length) > 0 or
+                           ($failures | split("\n") | map(select(length > 0)) | length) > 0)
+                        then "INCOMPLETE_DISCOVERY" else "CANDIDATE_DISCOVERY_ONLY" end)
+            }' > airquality-governance/scc_airquality_governance_manifest.json
+          cp scripts/scc_airquality_official_references.json \
+            airquality-governance/official_reference_leads.json
+          jq -e '.queries_completed == 10' \
+            airquality-governance/scc_airquality_governance_manifest.json > /dev/null
+      - name: Retain source discovery receipts including partial failures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scc-airquality-governance-source-discovery
+          path: airquality-governance/
+          retention-days: 90
+          if-no-files-found: error
+      - name: Fail closed on provider errors, missing queries or empty discovery
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          jq -e '
+            .status == "CANDIDATE_DISCOVERY_ONLY" and
+            .queries_completed == 10 and
+            .unique_candidate_sources > 0
+          ' airquality-governance/scc_airquality_governance_manifest.json > /dev/null
