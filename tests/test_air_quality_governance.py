@@ -125,9 +125,10 @@ def test_review_queue_rejects_scientific_promotion(tmp_path: Path) -> None:
         row = next(csv.DictReader(source))
     assert row["scientific_status"] == "CANDIDATE_METADATA_ONLY"
     assert row["regulatory_conclusion_allowed"] == "FALSE"
-    assert manifest["review_queue_sha256"] == hashlib.sha256(
-        (out / "scc_airquality_review_queue.csv").read_bytes()
-    ).hexdigest()
+    assert (
+        manifest["review_queue_sha256"]
+        == hashlib.sha256((out / "scc_airquality_review_queue.csv").read_bytes()).hexdigest()
+    )
 
 
 def test_truncated_provider_is_visible_not_comprehensive(tmp_path: Path) -> None:
