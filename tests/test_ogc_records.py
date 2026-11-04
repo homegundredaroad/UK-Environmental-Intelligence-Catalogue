@@ -34,9 +34,7 @@ def record(number: int = 1) -> dict[str, Any]:
             "description": "Fixture only; not live evidence",
             "license": "OGL-3.0",
             "keywords": ["water", "environment"],
-            "contacts": [
-                {"name": "Example Agency", "roles": ["publisher"]}
-            ],
+            "contacts": [{"name": "Example Agency", "roles": ["publisher"]}],
         },
         "links": [
             {"rel": "self", "href": f"{ENDPOINT}/record-{number}"},
@@ -88,9 +86,13 @@ def test_next_links_are_used_and_same_origin_enforced() -> None:
 
 def test_bounded_limit_marks_incomplete_coverage() -> None:
     client = FakeClient(
-        [{"features": [record()], "numberMatched": 300, "links": [
-            {"rel": "next", "href": "?offset=1"}
-        ]}]
+        [
+            {
+                "features": [record()],
+                "numberMatched": 300,
+                "links": [{"rel": "next", "href": "?offset=1"}],
+            }
+        ]
     )
     connector = OgcRecordsConnector(ENDPOINT, client=client)  # type: ignore[arg-type]
     assert len(connector.discover("water", 1)) == 1
@@ -107,36 +109,42 @@ def test_unknown_total_at_limit_does_not_claim_completeness() -> None:
     assert connector.coverage()["complete"] is False
 
 
-@pytest.mark.parametrize("endpoint", [
-    "http://data.example.org/items",
-    "https://127.0.0.1/items",
-    "https://localhost/items",
-    "https://data.example.org/items?token=secret",
-])
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://data.example.org/items",
+        "https://127.0.0.1/items",
+        "https://localhost/items",
+        "https://data.example.org/items?token=secret",
+    ],
+)
 def test_rejects_unsafe_endpoint(endpoint: str) -> None:
     with pytest.raises(DiscoveryError):
         OgcRecordsConnector(endpoint)
 
 
-@pytest.mark.parametrize("href", [
-    "https://evil.example.org/next",
-    "http://data.example.org/next",
-    "?token=secret&offset=1",
-])
+@pytest.mark.parametrize(
+    "href",
+    [
+        "https://evil.example.org/next",
+        "http://data.example.org/next",
+        "?token=secret&offset=1",
+    ],
+)
 def test_rejects_unsafe_pagination(href: str) -> None:
-    client = FakeClient([
-        {"features": [record()], "links": [{"rel": "next", "href": href}]}
-    ])
+    client = FakeClient([{"features": [record()], "links": [{"rel": "next", "href": href}]}])
     connector = OgcRecordsConnector(ENDPOINT, client=client)  # type: ignore[arg-type]
     with pytest.raises(DiscoveryError):
         connector.discover("water", 5)
 
 
 def test_rejects_pagination_cycle() -> None:
-    client = FakeClient([
-        {"features": [record()], "links": [{"rel": "next", "href": "?q=water&limit=3"}]},
-        {"features": [record()], "links": [{"rel": "next", "href": "?q=water&limit=3"}]},
-    ])
+    client = FakeClient(
+        [
+            {"features": [record()], "links": [{"rel": "next", "href": "?q=water&limit=3"}]},
+            {"features": [record()], "links": [{"rel": "next", "href": "?q=water&limit=3"}]},
+        ]
+    )
     connector = OgcRecordsConnector(ENDPOINT, client=client)  # type: ignore[arg-type]
     with pytest.raises(DiscoveryError, match="cycle"):
         connector.discover("water", 5)
@@ -157,17 +165,15 @@ def test_untrusted_invalid_record_and_link_are_skipped() -> None:
         {"rel": "data", "href": "http://127.0.0.1/private.csv"},
         {"rel": "self", "href": "http://127.0.0.1/secret"},
     ]
-    client = FakeClient([{
-        "features": [{"id": "invalid"}, malformed],
-        "numberMatched": 2,
-    }])
+    client = FakeClient(
+        [{"features": [{"id": "invalid"}, malformed], "numberMatched": 2}]
+    )
     connector = OgcRecordsConnector(ENDPOINT, client=client)  # type: ignore[arg-type]
     values = connector.discover("water", 5)
     assert len(values) == 1
     assert values[0].source.resources == ()
     assert values[0].source.url.startswith(ENDPOINT)
     assert connector.coverage()["complete"] is False
-
 
 
 def test_credential_bearing_data_link_is_not_exported() -> None:
@@ -183,11 +189,12 @@ def test_credential_bearing_data_link_is_not_exported() -> None:
     assert len(candidates) == 1
     assert candidates[0].source.resources == ()
 
+
 def test_cli_exposes_opt_in_endpoint_not_default() -> None:
     parser = build_parser()
-    args = parser.parse_args([
-        "discover", "--provider", "ogc-records", "--ogc-records-endpoint", ENDPOINT
-    ])
+    args = parser.parse_args(
+        ["discover", "--provider", "ogc-records", "--ogc-records-endpoint", ENDPOINT]
+    )
     assert args.provider == "ogc-records"
     assert args.ogc_records_endpoint == ENDPOINT
     assert parser.parse_args(["discover"]).ogc_records_endpoint is None
