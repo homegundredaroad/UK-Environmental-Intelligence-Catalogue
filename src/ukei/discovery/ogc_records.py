@@ -36,9 +36,7 @@ def _safe_public_url(value: object) -> str:
     return "" if query_keys & _AUTH_KEYS else url
 
 
-def _next_request(
-    current_url: str, href: str, origin: str
-) -> tuple[str, dict[str, str | int]]:
+def _next_request(current_url: str, href: str, origin: str) -> tuple[str, dict[str, str | int]]:
     target = urljoin(current_url, href)
     parts, root = urlsplit(target), urlsplit(origin)
     if (
@@ -102,11 +100,15 @@ class OgcRecordsConnector(DiscoveryConnector):
                     if candidate:
                         candidates.append(candidate)
             raw_links = payload.get("links")
-            next_links = [
-                link
-                for link in raw_links
-                if isinstance(link, Mapping) and _text(link.get("rel")) == "next"
-            ] if isinstance(raw_links, list) else []
+            next_links = (
+                [
+                    link
+                    for link in raw_links
+                    if isinstance(link, Mapping) and _text(link.get("rel")) == "next"
+                ]
+                if isinstance(raw_links, list)
+                else []
+            )
             has_next = bool(next_links)
             if not has_next or len(candidates) >= limit:
                 break
@@ -157,9 +159,11 @@ class OgcRecordsConnector(DiscoveryConnector):
                 if isinstance(contact, Mapping):
                     roles = contact.get("roles")
                     if isinstance(roles, list) and "publisher" in roles:
-                        publisher = _text(contact.get("organization")) or _text(
-                            contact.get("name")
-                        ) or publisher
+                        publisher = (
+                            _text(contact.get("organization"))
+                            or _text(contact.get("name"))
+                            or publisher
+                        )
                         break
         licence = _text(properties.get("license")) or (
             "Not supplied by discovery response; independently verify rights"
@@ -187,9 +191,11 @@ class OgcRecordsConnector(DiscoveryConnector):
                 )
             )
         keywords = properties.get("keywords")
-        themes = tuple(
-            _text(item) for item in keywords if _text(item)
-        ) if isinstance(keywords, list) else ()
+        themes = (
+            tuple(_text(item) for item in keywords if _text(item))
+            if isinstance(keywords, list)
+            else ()
+        )
         now = utc_now()
         source = SourceRecord(
             source_id=make_source_id(raw_id, self.name + ":" + self.endpoint),
