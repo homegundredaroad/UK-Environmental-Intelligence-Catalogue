@@ -95,7 +95,9 @@ def build_parser() -> argparse.ArgumentParser:
     import_json.add_argument("input", type=Path)
 
     discover = subparsers.add_parser("discover", help="discover untrusted source candidates")
-    discover.add_argument("--provider", choices=("all", "ckan", "arcgis", "ogc-records"), default="all")
+    discover.add_argument(
+        "--provider", choices=("all", "ckan", "arcgis", "ogc-records"), default="all"
+    )
     discover.add_argument("--query", default="environment")
     discover.add_argument(
         "--ogc-records-endpoint",
