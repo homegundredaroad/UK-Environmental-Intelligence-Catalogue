@@ -51,6 +51,20 @@ comprehensive source coverage and does not treat catalogue inclusion as verified
 - separate bounded checks for resource reachability, licence evidence and recency;
 - opt-in resource-validation artifacts containing reports and a canonical catalogue snapshot.
 
+## Opt-in OGC API Records discovery (new experimental provider)
+
+OGC Records metadata discovery is strictly **candidate-only** and must use an explicitly
+reviewed public HTTPS collection-items endpoint. It is not part of default discovery.
+
+```bash
+ukei discover --provider ogc-records \
+  --ogc-records-endpoint 'https://your-vetted-public-provider/collections/your-id/items' \
+  --query water --limit 25 --output ogc-records-review.json
+```
+
+See [SCC/VVIP harvester innovation and UK-wide source review](docs/harvester-innovation-register-2026-11-04.md)
+for emerging standards, source leads, limitations and release gates.
+
 ## Quick start
 
 Python 3.11 or newer is required.
