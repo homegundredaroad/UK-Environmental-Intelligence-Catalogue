@@ -14,6 +14,7 @@ from ukei.catalogue import Catalogue, CatalogueError
 from ukei.config import ConfigurationError, Settings
 from ukei.discovery import ArcGisConnector, CkanConnector, DiscoveryError, run_discovery
 from ukei.discovery.http import JsonHttpClient
+from ukei.discovery.ogc_records import OgcRecordsConnector
 from ukei.intelligence import build_ml_report, enrich_catalogue
 from ukei.logging_config import configure_logging
 from ukei.models import SourceRecord, SourceStatus, make_source_id
@@ -94,8 +95,12 @@ def build_parser() -> argparse.ArgumentParser:
     import_json.add_argument("input", type=Path)
 
     discover = subparsers.add_parser("discover", help="discover untrusted source candidates")
-    discover.add_argument("--provider", choices=("all", "ckan", "arcgis"), default="all")
+    discover.add_argument("--provider", choices=("all", "ckan", "arcgis", "ogc-records"), default="all")
     discover.add_argument("--query", default="environment")
+    discover.add_argument(
+        "--ogc-records-endpoint",
+        help="opt-in public HTTPS OGC API Records /collections/<id>/items URL",
+    )
     discover.add_argument("--limit", type=int, default=25)
     discover.add_argument("--output", type=Path, default=Path("discovery-report.json"))
     discover.add_argument(
@@ -316,6 +321,12 @@ def run(argv: Sequence[str] | None = None) -> int:
                 "ckan": CkanConnector(client),
                 "arcgis": ArcGisConnector(client),
             }
+            if args.ogc_records_endpoint:
+                available["ogc-records"] = OgcRecordsConnector(
+                    args.ogc_records_endpoint, client
+                )
+            if args.provider == "ogc-records" and not args.ogc_records_endpoint:
+                raise ValueError("--provider ogc-records requires --ogc-records-endpoint")
             selected = (
                 tuple(available.values()) if args.provider == "all" else (available[args.provider],)
             )
