@@ -190,6 +190,19 @@ def test_manifest_deduplicates_selects_resource_and_blocks_redacted_probe(tmp_pa
     assert (tmp_path / "out" / "harvestability-receipt.json").exists()
 
 
+def test_manifest_escapes_untrusted_spreadsheet_formulas(tmp_path: Path) -> None:
+    payload = _catalogue()
+    payload["records"] = [payload["records"][0]]
+    payload["records"][0]["publisher"] = '=HYPERLINK("https://malicious.example","click")'
+    source = tmp_path / "input.json"
+    source.write_text(json.dumps(payload), encoding="utf-8")
+    build_harvestability_manifest(source, tmp_path / "out")
+    rows = list(csv.DictReader((tmp_path / "out" / "harvestability-manifest.csv").open()))
+    assert rows[0]["provider"].startswith("'=HYPERLINK")
+    evidence = json.loads((tmp_path / "out" / "harvestability-evidence.json").read_text())
+    assert evidence["datasets"][0]["members"][0]["publisher"].startswith("=HYPERLINK")
+
+
 def test_existing_validation_is_used_without_live_probe(tmp_path: Path) -> None:
     payload = _catalogue()
     payload["records"] = [payload["records"][0]]
