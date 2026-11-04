@@ -101,6 +101,8 @@ def test_helpers_cover_auth_machine_and_validation(tmp_path: Path) -> None:
     assert _authentication("https://x.test/data?token=REDACTED") == "redacted_or_required"
     assert _safe_probe_url("https://x.test/a.csv")
     assert not _safe_probe_url("http://x.test/a.csv")
+    assert not _safe_probe_url("https://127.0.0.1/private.csv")
+    assert not _safe_probe_url("https://localhost/private.csv")
     assert _machine_readable({"url": "https://x.test/a.csv", "format": "", "media_type": ""})
     assert _machine_readable(
         {"url": "https://x.test/a", "format": "", "media_type": ""}, "application/json"
