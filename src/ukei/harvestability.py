@@ -147,7 +147,6 @@ def _authentication(url: str) -> str:
 
 
 def _safe_probe_url(url: str) -> bool:
-    parsed = urlparse(url)
     return (
         url_error(url, require_https=True, public_only=True) is None
         and _authentication(url) == "none_observed"
