@@ -5,13 +5,13 @@ SCC = Search, Corroborate, Communicate. VVIP = Validation, Verification, Integri
 
 ## Implemented in this review branch
 
-- **OGC API - Records 1.0**: opt-in \`OgcRecordsConnector\` parses structured
+- **OGC API - Records 1.0**: opt-in `OgcRecordsConnector` parses structured
   discovery records and their data links, hashes original metadata, emits
   candidate-only source records, records pagination/coverage uncertainty, caps
   requests and blocks non-public initial endpoints and cross-origin next links.
-- **CLI**: \`ukei discover --provider ogc-records --ogc-records-endpoint
-  https://<public-host>/collections/<collection>/items --query water --limit 25\`.
-  No OGC endpoint is queried by default; \`--provider all\` adds it **only when
+- **CLI**: `ukei discover --provider ogc-records --ogc-records-endpoint
+  https://<public-host>/collections/<collection>/items --query water --limit 25`.
+  No OGC endpoint is queried by default; `--provider all` adds it **only when
   an explicit endpoint was provided**. Use only a known, vetted official endpoint.
 - **Tests**: fixture-based records, provenance, pagination, incomplete coverage,
   credential-bearing next links, unsafe endpoints and malformed responses.
@@ -83,13 +83,13 @@ https://eidc.ac.uk/
 
 **Release boundary:** a reachable endpoint, parseable JSON, even a passing
 schema test, does not imply scientific admissibility or national completeness.
-All new feeds remain \`candidate\` / \`REVIEW_REQUIRED\` until an independent,
+All new feeds remain `candidate` / `REVIEW_REQUIRED` until an independent,
 original-provider data acquisition and reviewed release gate is complete.
 
 ## Additional engineering gates before live expansion
 
 - Redirect and DNS controls require hardening: the existing generic
-  \`JsonHttpClient\` uses urllib's default redirect handling; a public HTTPS
+  `JsonHttpClient` uses urllib's default redirect handling; a public HTTPS
   seed URL can still redirect. Before unattended execution against arbitrary
   third-party endpoints, enforce approved host allowlists, disallow or inspect
   redirects before connecting, and protect against DNS rebinding and private
