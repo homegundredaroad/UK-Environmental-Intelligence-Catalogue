@@ -30,7 +30,10 @@ def _links(item: Mapping[str, Any]) -> list[Mapping[str, Any]]:
 
 def _safe_public_url(value: object) -> str:
     url = _text(value)
-    return url if url_error(url, require_https=True, public_only=True) is None else ""
+    if url_error(url, require_https=True, public_only=True) is not None:
+        return ""
+    query_keys = {key.casefold() for key, _ in parse_qsl(urlsplit(url).query)}
+    return "" if query_keys & _AUTH_KEYS else url
 
 
 def _next_request(
@@ -115,7 +118,7 @@ class OgcRecordsConnector(DiscoveryConnector):
             current, params = _next_request(current, href, self.endpoint)
 
         returned = len(candidates[:limit])
-        unknown = matched is None and (has_next or returned >= limit)
+        unknown = matched is None
         truncated = has_next or (matched is not None and returned < matched)
         self._coverage = {
             "complete": not truncated and not unknown,
