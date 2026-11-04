@@ -169,6 +169,20 @@ def test_untrusted_invalid_record_and_link_are_skipped() -> None:
     assert connector.coverage()["complete"] is False
 
 
+
+def test_credential_bearing_data_link_is_not_exported() -> None:
+    with_secret = record()
+    with_secret["links"] = [
+        {"rel": "data", "href": "https://data.example.org/file.csv?access_token=sensitive"}
+    ]
+    connector = OgcRecordsConnector(
+        ENDPOINT,
+        client=FakeClient([{"features": [with_secret], "numberMatched": 1}]),  # type: ignore[arg-type]
+    )
+    candidates = connector.discover("water", 5)
+    assert len(candidates) == 1
+    assert candidates[0].source.resources == ()
+
 def test_cli_exposes_opt_in_endpoint_not_default() -> None:
     parser = build_parser()
     args = parser.parse_args([
