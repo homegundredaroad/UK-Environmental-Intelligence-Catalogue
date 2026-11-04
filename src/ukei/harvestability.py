@@ -70,6 +70,14 @@ _AUTH_KEYS = {
 ProbeFunction = Callable[[str, str, float], dict[str, Any]]
 
 
+def _safe_csv_cell(value: object) -> str:
+    """Prevent spreadsheet formula interpretation in reviewer-facing CSV exports."""
+    text = str(value)
+    if text.lstrip(" \t\r\n\ufeff").startswith(("=", "+", "-", "@")):
+        return "'" + text
+    return text
+
+
 def _load_json(path: str | Path) -> dict[str, Any]:
     source = Path(path)
     opener = gzip.open if source.suffix == ".gz" else open
@@ -447,7 +455,10 @@ def build_harvestability_manifest(
     with (output / "harvestability-manifest.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(
+            {field: _safe_csv_cell(value) for field, value in row.items()}
+            for row in rows
+        )
     (output / "harvestability-evidence.json").write_text(
         json.dumps({"schema": SCHEMA, "datasets": evidence}, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
