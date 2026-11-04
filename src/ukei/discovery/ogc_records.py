@@ -44,7 +44,7 @@ def _next_request(current_url: str, href: str, origin: str) -> tuple[str, dict[s
         or (parts.scheme, parts.netloc.lower()) != (root.scheme, root.netloc.lower())
     ):
         raise DiscoveryError("OGC Records pagination escaped the configured HTTPS origin")
-    params = dict(parse_qsl(parts.query, keep_blank_values=True))
+    params: dict[str, str | int] = dict(parse_qsl(parts.query, keep_blank_values=True))
     if any(key.lower() in _AUTH_KEYS for key in params):
         raise DiscoveryError("OGC Records next link contained credential parameters")
     return target.split("?")[0].split("#")[0], params
