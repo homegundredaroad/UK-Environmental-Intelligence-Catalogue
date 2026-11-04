@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
-from urllib.parse import parse_qsl, quote, urljoin, urlencode, urlsplit
+from urllib.parse import parse_qsl, quote, urlencode, urljoin, urlsplit
 
 from ukei.discovery.base import DiscoveryCandidate, DiscoveryConnector, DiscoveryError
 from ukei.discovery.http import JsonHttpClient
