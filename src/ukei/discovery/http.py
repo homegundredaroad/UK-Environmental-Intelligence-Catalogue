@@ -76,9 +76,8 @@ class JsonHttpClient:
     def get_json(self, url: str, parameters: dict[str, str | int]) -> Any:
         if urlsplit(url).scheme != "https":
             raise DiscoveryError("discovery endpoint must use HTTPS")
-        if self.strict_public:
-            if url_error(url, require_https=True, public_only=True) is not None:
-                raise DiscoveryError("strict discovery requires a public HTTPS endpoint")
+        if self.strict_public and url_error(url, require_https=True, public_only=True):
+            raise DiscoveryError("strict discovery requires a public HTTPS endpoint")
         request_url = f"{url}?{urlencode(parameters)}"
         request = Request(
             request_url,
