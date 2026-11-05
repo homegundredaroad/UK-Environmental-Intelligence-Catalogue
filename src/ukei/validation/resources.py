@@ -189,7 +189,14 @@ class ResourceValidator:
                 message=message,
                 details=details,
             )
-        except (DiscoveryError, HTTPError, URLError, OSError, ValueError, json.JSONDecodeError) as exc:
+        except (
+            DiscoveryError,
+            HTTPError,
+            URLError,
+            OSError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             details["failure_reason"] = str(exc)
             details["outcome"] = _service_failure_outcome(exc)
             return ValidationResult(
