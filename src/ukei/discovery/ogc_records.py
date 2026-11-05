@@ -61,7 +61,7 @@ class OgcRecordsConnector(DiscoveryConnector):
         if urlsplit(endpoint).query or urlsplit(endpoint).fragment:
             raise DiscoveryError("OGC Records endpoint must not contain query or fragment")
         self.endpoint = endpoint.rstrip("/")
-        self.client = client or JsonHttpClient()
+        self.client = client or JsonHttpClient(strict_public=True)
         self._coverage: dict[str, Any] = {}
 
     def coverage(self) -> dict[str, Any]:
