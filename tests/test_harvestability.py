@@ -101,6 +101,8 @@ def test_helpers_cover_auth_machine_and_validation(tmp_path: Path) -> None:
     assert _authentication("https://x.test/data?token=REDACTED") == "redacted_or_required"
     assert _safe_probe_url("https://x.test/a.csv")
     assert not _safe_probe_url("http://x.test/a.csv")
+    assert not _safe_probe_url("https://127.0.0.1/private.csv")
+    assert not _safe_probe_url("https://localhost/private.csv")
     assert _machine_readable({"url": "https://x.test/a.csv", "format": "", "media_type": ""})
     assert _machine_readable(
         {"url": "https://x.test/a", "format": "", "media_type": ""}, "application/json"
@@ -188,6 +190,19 @@ def test_manifest_deduplicates_selects_resource_and_blocks_redacted_probe(tmp_pa
     assert "no explicit air-context evidence" in four["reason"]
     assert (tmp_path / "out" / "harvestability-evidence.json").exists()
     assert (tmp_path / "out" / "harvestability-receipt.json").exists()
+
+
+def test_manifest_escapes_untrusted_spreadsheet_formulas(tmp_path: Path) -> None:
+    payload = _catalogue()
+    payload["records"] = [payload["records"][0]]
+    payload["records"][0]["publisher"] = '=HYPERLINK("https://malicious.example","click")'
+    source = tmp_path / "input.json"
+    source.write_text(json.dumps(payload), encoding="utf-8")
+    build_harvestability_manifest(source, tmp_path / "out")
+    rows = list(csv.DictReader((tmp_path / "out" / "harvestability-manifest.csv").open()))
+    assert rows[0]["provider"].startswith("'=HYPERLINK")
+    evidence = json.loads((tmp_path / "out" / "harvestability-evidence.json").read_text())
+    assert evidence["datasets"][0]["members"][0]["publisher"].startswith("=HYPERLINK")
 
 
 def test_existing_validation_is_used_without_live_probe(tmp_path: Path) -> None:

@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qsl, urlparse
 
+from ukei.url_safety import url_error
+
 SCHEMA = "ukei_scc_air_quality_harvestability_v1"
 _MACHINE_FORMATS = {
     "api",
@@ -68,6 +70,14 @@ _AUTH_KEYS = {
     "token",
 }
 ProbeFunction = Callable[[str, str, float], dict[str, Any]]
+
+
+def _safe_csv_cell(value: object) -> str:
+    """Prevent spreadsheet formula interpretation in reviewer-facing CSV exports."""
+    text = str(value)
+    if text.lstrip(" \t\r\n\ufeff").startswith(("=", "+", "-", "@")):
+        return "'" + text
+    return text
 
 
 def _load_json(path: str | Path) -> dict[str, Any]:
@@ -137,10 +147,8 @@ def _authentication(url: str) -> str:
 
 
 def _safe_probe_url(url: str) -> bool:
-    parsed = urlparse(url)
     return (
-        parsed.scheme == "https"
-        and bool(parsed.hostname)
+        url_error(url, require_https=True, public_only=True) is None
         and _authentication(url) == "none_observed"
     )
 
@@ -447,7 +455,9 @@ def build_harvestability_manifest(
     with (output / "harvestability-manifest.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
-        writer.writerows(rows)
+        writer.writerows(
+            {field: _safe_csv_cell(value) for field, value in row.items()} for row in rows
+        )
     (output / "harvestability-evidence.json").write_text(
         json.dumps({"schema": SCHEMA, "datasets": evidence}, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
