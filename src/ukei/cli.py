@@ -325,7 +325,10 @@ def run(argv: Sequence[str] | None = None) -> int:
                 "arcgis": ArcGisConnector(client),
             }
             if args.ogc_records_endpoint:
-                available["ogc-records"] = OgcRecordsConnector(args.ogc_records_endpoint, client)
+                available["ogc-records"] = OgcRecordsConnector(
+                    args.ogc_records_endpoint,
+                    JsonHttpClient(settings.http_timeout_seconds, strict_public=True),
+                )
             if args.provider == "ogc-records" and not args.ogc_records_endpoint:
                 raise ValueError("--provider ogc-records requires --ogc-records-endpoint")
             selected = (
