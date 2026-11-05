@@ -260,6 +260,27 @@ def _default_probe(source_id: str, url: str, timeout_seconds: float) -> dict[str
     return result.to_dict()
 
 
+def _policy_block_category(result: Mapping[str, Any] | None) -> str:
+    """Classify transport denials without publishing untrusted error strings or URLs."""
+    if not result:
+        return ""
+    details = result.get("details", {})
+    if not isinstance(details, Mapping) or details.get("outcome") != "blocked_by_policy":
+        return ""
+    reason = str(details.get("failure_reason", "")).casefold()
+    if "redirect" in reason:
+        return "redirect_disallowed"
+    if "non-public dns" in reason:
+        return "non_public_dns"
+    if "cannot resolve" in reason or "no addresses" in reason:
+        return "dns_resolution_failure"
+    if "public https endpoint" in reason:
+        return "non_public_endpoint"
+    if "credential" in reason:
+        return "credential_policy"
+    return "other_policy_block"
+
+
 def _observation(result: Mapping[str, Any] | None) -> tuple[str, str, str, str]:
     if not result:
         return "unknown", "", "", ""
@@ -267,7 +288,9 @@ def _observation(result: Mapping[str, Any] | None) -> tuple[str, str, str, str]:
     if not isinstance(details, Mapping):
         details = {}
     outcome = str(details.get("outcome", ""))
-    reachable = "yes" if bool(result.get("passed")) else "no"
+    reachable = (
+        "unknown" if outcome == "blocked_by_policy" else "yes" if result.get("passed") else "no"
+    )
     return (
         reachable,
         str(details.get("content_type", "")),
@@ -347,6 +370,7 @@ def build_harvestability_manifest(
             )
             probes_used += 1
         reachable, content_type, checked_at, outcome = _observation(evidence_result)
+        policy_block_category = _policy_block_category(evidence_result)
         machine = _machine_readable(selected, content_type)
         auth = _authentication(str(selected.get("url", "")))
         licence = str(representative.get("licence", ""))
@@ -375,7 +399,9 @@ def build_harvestability_manifest(
             reasons.append("no explicit air-context evidence")
         if not machine:
             reasons.append("no machine-readable endpoint established")
-        if reachable != "yes":
+        if policy_block_category:
+            reasons.append(f"transport policy review: {policy_block_category}")
+        elif reachable != "yes":
             reasons.append(f"reachability {reachable}")
         if not licence_ok:
             reasons.append("licence review required")
@@ -407,6 +433,7 @@ def build_harvestability_manifest(
             "provider_verified": "no",
             "last_probe_utc": checked_at,
             "probe_outcome": outcome,
+            "policy_block_category": policy_block_category,
             "content_type": content_type,
             "content_hash": group_hash,
             "duplicate_count": len(members),
@@ -445,6 +472,7 @@ def build_harvestability_manifest(
             "provider_verified",
             "last_probe_utc",
             "probe_outcome",
+            "policy_block_category",
             "content_type",
             "content_hash",
             "duplicate_count",
@@ -460,6 +488,24 @@ def build_harvestability_manifest(
         writer.writerows(
             {field: _safe_csv_cell(value) for field, value in row.items()} for row in rows
         )
+    review_fields = (
+        "dataset_key",
+        "source_id",
+        "provider",
+        "dataset",
+        "probe_outcome",
+        "policy_block_category",
+        "last_probe_utc",
+        "vvip_status",
+    )
+    with (output / "policy-block-review.csv").open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=review_fields)
+        writer.writeheader()
+        writer.writerows(
+            {field: _safe_csv_cell(row[field]) for field in review_fields}
+            for row in rows
+            if row["probe_outcome"] == "blocked_by_policy"
+        )
     (output / "harvestability-evidence.json").write_text(
         json.dumps({"schema": SCHEMA, "datasets": evidence}, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
@@ -474,6 +520,8 @@ def build_harvestability_manifest(
         "air_context_dataset_count": sum(row["air_context"] == "yes" for row in rows),
         "machine_readable_count": sum(row["machine_readable"] == "yes" for row in rows),
         "reachable_count": sum(row["reachable"] == "yes" for row in rows),
+        "policy_blocked_count": sum(row["probe_outcome"] == "blocked_by_policy" for row in rows),
+        "policy_review_queue": "policy-block-review.csv",
         "candidate_for_test_count": sum(
             row["sccaq_status"] == "CANDIDATE_FOR_TEST" for row in rows
         ),

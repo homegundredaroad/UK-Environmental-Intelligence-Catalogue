@@ -193,6 +193,13 @@ jobs:
                   raise SystemExit("Unredacted credential-like query value in manifest")
               if row.get("sccaq_status") not in {"DISCOVERED_ONLY", "CANDIDATE_FOR_TEST"}:
                   raise SystemExit("Unexpected SCC Air Quality status")
+              if row.get("probe_outcome") == "blocked_by_policy":
+                  if row.get("reachable") != "unknown":
+                      raise SystemExit("Safety-blocked endpoint classified as unreachable")
+          with (out / "policy-block-review.csv").open(newline="", encoding="utf-8") as fh:
+              review_rows = list(csv.DictReader(fh))
+          if len(review_rows) != receipt["policy_blocked_count"]:
+              raise SystemExit("Policy block review queue does not reconcile")
           print(
               "PASS: governed harvestability output; "
               f"{receipt['candidate_for_test_count']} candidates for independent test review."
@@ -207,6 +214,7 @@ jobs:
           dest="handoff/sccairquality/harvestability"
           mkdir -p "${dest}"
           cp "${out}/harvestability-manifest.csv" "${dest}/harvestability-manifest.csv"
+          cp "${out}/policy-block-review.csv" "${dest}/policy-block-review.csv"
           cp "${out}/harvestability-receipt.json" "${dest}/harvestability-receipt.json"
           cp "${RUNNER_TEMP}/coverage-output/authoritative-coverage-matrix.csv" \
             "${dest}/authoritative-coverage-matrix.csv"
@@ -217,6 +225,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -f \
             "${dest}/harvestability-manifest.csv" \
+            "${dest}/policy-block-review.csv" \
             "${dest}/harvestability-receipt.json" \
             "${dest}/authoritative-coverage-matrix.csv" \
             "${dest}/authoritative-coverage-receipt.json"

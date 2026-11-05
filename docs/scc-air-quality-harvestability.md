@@ -41,6 +41,7 @@ The repository keeps only the lean review snapshot:
 
 - `handoff/sccairquality/harvestability/harvestability-manifest.csv`
 - `handoff/sccairquality/harvestability/harvestability-receipt.json`
+- `handoff/sccairquality/harvestability/policy-block-review.csv`
 
 The workflow artifact retains the fuller evidence bundle, including the selected endpoint and grouped
 source records, for 30 days. The receipt always records that scientific admissibility is not conferred
@@ -52,3 +53,24 @@ The catalogue discovers and qualifies. SCC Air Quality independently reacquires 
 original provider. A catalogue success, a reachability success, or a `CANDIDATE_FOR_TEST` row must never
 be represented as proof of accuracy, completeness, comparability, regulatory suitability, exposure, or
 health effect.
+
+## Policy-block review (5 November 2026)
+
+A network safety block is **not evidence that a dataset is missing or unreachable**.
+When the bounded transport refuses a redirect, a non-public DNS answer, a DNS
+resolution, or an invalid endpoint, the manifest keeps the record, sets
+`probe_outcome=blocked_by_policy` and `reachable=unknown`, and emits a separate
+`policy-block-review.csv` queue. All these records remain `DISCOVERED_ONLY` and
+`REVIEW_REQUIRED`, never `CANDIDATE_FOR_TEST`.
+
+The queue deliberately excludes raw failure messages and endpoint URLs; reviewers
+can cross-reference the manifest by `dataset_key` and `source_id`. Release receipts
+record `policy_blocked_count` and the queue filename, and CI verifies consistency.
+A denial must not trigger an automatic exception, redirect approval or security
+bypass. Review original-provider metadata and approved host/redirect policies,
+then test a separately approved provider adapter with pinned domain policies.
+
+The 5 November qualification receipt had 26 policy blocks and only 2 datasets
+eligible for independent testing, compared with 24 in the preceding receipt.
+Most of the changed entries came from York/Leeds open-data feeds. This records a
+**classification and network-policy change**, not proof of permanent source loss.
