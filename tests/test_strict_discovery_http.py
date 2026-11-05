@@ -48,7 +48,9 @@ def test_strict_transport_uses_no_proxy_and_no_redirect(
 
     def fake_build_opener(*handlers: object) -> FakeOpener:
         assert any(isinstance(value, _RejectRedirects) for value in handlers)
-        assert any(isinstance(value, ProxyHandler) and getattr(value, "proxies", None) == {} for value in handlers)
+        proxies = [value for value in handlers if isinstance(value, ProxyHandler)]
+        assert len(proxies) == 1
+        assert getattr(proxies[0], "proxies", None) == {}
         return opener
 
     monkeypatch.setattr(
