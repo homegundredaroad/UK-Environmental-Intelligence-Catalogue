@@ -49,7 +49,6 @@ def _require_public_dns(url: str) -> None:
             raise DiscoveryError("strict discovery rejected a non-public DNS address")
 
 
-
 def open_public_request(request: Request, timeout_seconds: float) -> Any:
     """Open a reviewed public HTTPS request without proxies or redirects.
 
