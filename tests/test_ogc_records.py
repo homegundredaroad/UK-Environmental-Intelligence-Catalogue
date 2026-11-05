@@ -102,7 +102,8 @@ def test_bounded_limit_marks_incomplete_coverage() -> None:
 
 def test_unknown_total_at_limit_does_not_claim_completeness() -> None:
     connector = OgcRecordsConnector(
-        ENDPOINT, client=FakeClient([{"features": [record()]}])  # type: ignore[arg-type]
+        ENDPOINT,
+        client=FakeClient([{"features": [record()]}]),  # type: ignore[arg-type]
     )
     connector.discover("water", 1)
     assert connector.coverage()["coverage_unknown"] is True
@@ -153,7 +154,8 @@ def test_rejects_pagination_cycle() -> None:
 @pytest.mark.parametrize("payload", [{}, [], {"features": "not-a-list"}])
 def test_bad_response_contract_fails_closed(payload: Any) -> None:
     connector = OgcRecordsConnector(
-        ENDPOINT, client=FakeClient([payload])  # type: ignore[arg-type]
+        ENDPOINT,
+        client=FakeClient([payload]),  # type: ignore[arg-type]
     )
     with pytest.raises(DiscoveryError):
         connector.discover("water", 3)
@@ -165,9 +167,7 @@ def test_untrusted_invalid_record_and_link_are_skipped() -> None:
         {"rel": "data", "href": "http://127.0.0.1/private.csv"},
         {"rel": "self", "href": "http://127.0.0.1/secret"},
     ]
-    client = FakeClient(
-        [{"features": [{"id": "invalid"}, malformed], "numberMatched": 2}]
-    )
+    client = FakeClient([{"features": [{"id": "invalid"}, malformed], "numberMatched": 2}])
     connector = OgcRecordsConnector(ENDPOINT, client=client)  # type: ignore[arg-type]
     values = connector.discover("water", 5)
     assert len(values) == 1
