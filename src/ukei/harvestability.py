@@ -456,8 +456,7 @@ def build_harvestability_manifest(
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()
         writer.writerows(
-            {field: _safe_csv_cell(value) for field, value in row.items()}
-            for row in rows
+            {field: _safe_csv_cell(value) for field, value in row.items()} for row in rows
         )
     (output / "harvestability-evidence.json").write_text(
         json.dumps({"schema": SCHEMA, "datasets": evidence}, indent=2, sort_keys=True) + "\n",
