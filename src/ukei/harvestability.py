@@ -254,7 +254,9 @@ def _load_relevance_csv(path: str | Path | None) -> dict[str, list[dict[str, str
 def _default_probe(source_id: str, url: str, timeout_seconds: float) -> dict[str, Any]:
     from ukei.validation.live import bounded_url_result
 
-    result = bounded_url_result(source_id, url, "harvestability.url", timeout_seconds)
+    result = bounded_url_result(
+        source_id, url, "harvestability.url", timeout_seconds, strict_public=True
+    )
     return result.to_dict()
 
 

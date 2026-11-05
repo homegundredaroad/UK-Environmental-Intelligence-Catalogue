@@ -10,6 +10,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
+from ukei.discovery.base import DiscoveryError
+from ukei.discovery.http import open_public_request
 from ukei.licensing import classify_licence
 from ukei.models import SourceRecord, ValidationResult, utc_now
 from ukei.validation.base import is_explicit_metadata
@@ -59,6 +61,7 @@ class ResourceValidator:
                     "resource.url",
                     self.timeout_seconds,
                     context,
+                    strict_public=source.connector == "ogc-records:opt-in",
                 )
             )
             explicit_licence = is_explicit_metadata(resource.licence)
@@ -136,7 +139,12 @@ class ResourceValidator:
                 endpoint,
                 headers={"Accept": "application/json", "User-Agent": "ukei-catalogue/0.6"},
             )
-            with urlopen(request, timeout=self.timeout_seconds) as response:
+            response_context = (
+                open_public_request(request, self.timeout_seconds)
+                if source.connector == "ogc-records:opt-in"
+                else urlopen(request, timeout=self.timeout_seconds)
+            )
+            with response_context as response:
                 body = response.read(1_048_577)
             if len(body) > 1_048_576:
                 raise ValueError("service metadata exceeded 1 MiB")
@@ -181,7 +189,14 @@ class ResourceValidator:
                 message=message,
                 details=details,
             )
-        except (HTTPError, URLError, OSError, ValueError, json.JSONDecodeError) as exc:
+        except (
+            DiscoveryError,
+            HTTPError,
+            URLError,
+            OSError,
+            ValueError,
+            json.JSONDecodeError,
+        ) as exc:
             details["failure_reason"] = str(exc)
             details["outcome"] = _service_failure_outcome(exc)
             return ValidationResult(
@@ -209,7 +224,12 @@ class ResourceValidator:
                 endpoint,
                 headers={"Accept": "application/xml,text/xml", "User-Agent": "ukei-catalogue/0.9"},
             )
-            with urlopen(request, timeout=self.timeout_seconds) as response:
+            response_context = (
+                open_public_request(request, self.timeout_seconds)
+                if source.connector == "ogc-records:opt-in"
+                else urlopen(request, timeout=self.timeout_seconds)
+            )
+            with response_context as response:
                 body = response.read(2_097_153)
             if len(body) > 2_097_152:
                 raise ValueError("OGC capabilities exceeded 2 MiB")
@@ -239,7 +259,7 @@ class ResourceValidator:
                 ),
                 details=details,
             )
-        except (HTTPError, URLError, OSError, ValueError, ET.ParseError) as exc:
+        except (DiscoveryError, HTTPError, URLError, OSError, ValueError, ET.ParseError) as exc:
             details.update({"failure_reason": str(exc), "outcome": _service_failure_outcome(exc)})
             return ValidationResult(
                 source_id=source.source_id,
@@ -266,6 +286,8 @@ def _ogc_service_kind(url: str, format_name: str) -> str | None:
 
 
 def _service_failure_outcome(exc: Exception) -> str:
+    if isinstance(exc, DiscoveryError):
+        return "blocked_by_policy"
     if isinstance(exc, HTTPError):
         if exc.code in {404, 410}:
             return "confirmed_missing"
