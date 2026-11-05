@@ -39,10 +39,10 @@ def _safe_public_url(value: object) -> str:
 def _next_request(current_url: str, href: str, origin: str) -> tuple[str, dict[str, str | int]]:
     target = urljoin(current_url, href)
     parts, root = urlsplit(target), urlsplit(origin)
-    if (
-        url_error(target, require_https=True, public_only=True) is not None
-        or (parts.scheme, parts.netloc.lower()) != (root.scheme, root.netloc.lower())
-    ):
+    if url_error(target, require_https=True, public_only=True) is not None or (
+        parts.scheme,
+        parts.netloc.lower(),
+    ) != (root.scheme, root.netloc.lower()):
         raise DiscoveryError("OGC Records pagination escaped the configured HTTPS origin")
     params: dict[str, str | int] = dict(parse_qsl(parts.query, keep_blank_values=True))
     if any(key.lower() in _AUTH_KEYS for key in params):
@@ -143,15 +143,18 @@ class OgcRecordsConnector(DiscoveryConnector):
         if not raw_id or not title:
             return None
         links = _links(item)
-        canonical = next(
-            (
-                safe
-                for link in links
-                if _text(link.get("rel")) == "self"
-                if (safe := _safe_public_url(link.get("href")))
-            ),
-            "",
-        ) or f"{self.endpoint}/{quote(raw_id, safe='')}"
+        canonical = (
+            next(
+                (
+                    safe
+                    for link in links
+                    if _text(link.get("rel")) == "self"
+                    if (safe := _safe_public_url(link.get("href")))
+                ),
+                "",
+            )
+            or f"{self.endpoint}/{quote(raw_id, safe='')}"
+        )
         publisher = "Publisher not supplied by OGC Records"
         contacts = properties.get("contacts")
         if isinstance(contacts, list):
