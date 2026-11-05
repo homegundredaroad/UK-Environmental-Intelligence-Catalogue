@@ -498,9 +498,7 @@ def build_harvestability_manifest(
         "last_probe_utc",
         "vvip_status",
     )
-    with (output / "policy-block-review.csv").open(
-        "w", newline="", encoding="utf-8"
-    ) as handle:
+    with (output / "policy-block-review.csv").open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=review_fields)
         writer.writeheader()
         writer.writerows(
@@ -522,9 +520,7 @@ def build_harvestability_manifest(
         "air_context_dataset_count": sum(row["air_context"] == "yes" for row in rows),
         "machine_readable_count": sum(row["machine_readable"] == "yes" for row in rows),
         "reachable_count": sum(row["reachable"] == "yes" for row in rows),
-        "policy_blocked_count": sum(
-            row["probe_outcome"] == "blocked_by_policy" for row in rows
-        ),
+        "policy_blocked_count": sum(row["probe_outcome"] == "blocked_by_policy" for row in rows),
         "policy_review_queue": "policy-block-review.csv",
         "candidate_for_test_count": sum(
             row["sccaq_status"] == "CANDIDATE_FOR_TEST" for row in rows
