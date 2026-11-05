@@ -6,6 +6,8 @@ from time import monotonic
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from ukei.discovery.base import DiscoveryError
+from ukei.discovery.http import open_public_request
 from ukei.models import SourceRecord, ValidationResult
 from ukei.url_safety import url_error
 
@@ -27,6 +29,7 @@ class UrlValidator:
                 source.url,
                 self.name,
                 self.timeout_seconds,
+                strict_public=source.connector == "ogc-records:opt-in",
             ),
         )
 
@@ -37,6 +40,8 @@ def bounded_url_result(
     check_name: str,
     timeout_seconds: float,
     context: dict[str, object] | None = None,
+    *,
+    strict_public: bool = False,
 ) -> ValidationResult:
     """Return one bounded public-HTTPS observation with optional resource context."""
     details = dict(context or {})
@@ -63,7 +68,12 @@ def bounded_url_result(
     )
     started = monotonic()
     try:
-        with urlopen(request, timeout=timeout_seconds) as response:
+        response_context = (
+            open_public_request(request, timeout_seconds)
+            if strict_public
+            else urlopen(request, timeout=timeout_seconds)
+        )
+        with response_context as response:
             response.read(1)
             status = int(getattr(response, "status", 200))
             final_url = response.geturl()
@@ -90,6 +100,15 @@ def bounded_url_result(
             check_name=check_name,
             passed=passed,
             message=message if passed else f"FAILED: {message}",
+            details=details,
+        )
+    except DiscoveryError as exc:
+        details.update({"failure_reason": str(exc), "outcome": "blocked_by_policy"})
+        return ValidationResult(
+            source_id=source_id,
+            check_name=check_name,
+            passed=False,
+            message=f"FAILED: URL check blocked by strict policy: {exc}",
             details=details,
         )
     except HTTPError as exc:
