@@ -13,6 +13,7 @@ from ukei import __version__
 from ukei.catalogue import Catalogue, CatalogueError
 from ukei.config import ConfigurationError, Settings
 from ukei.discovery import ArcGisConnector, CkanConnector, DiscoveryError, run_discovery
+from ukei.discovery.base import DiscoveryConnector
 from ukei.discovery.http import JsonHttpClient
 from ukei.discovery.ogc_records import OgcRecordsConnector
 from ukei.intelligence import build_ml_report, enrich_catalogue
@@ -319,14 +320,12 @@ def run(argv: Sequence[str] | None = None) -> int:
             print(f"Imported {count} records")
         elif args.command == "discover":
             client = JsonHttpClient(settings.http_timeout_seconds)
-            available = {
+            available: dict[str, DiscoveryConnector] = {
                 "ckan": CkanConnector(client),
                 "arcgis": ArcGisConnector(client),
             }
             if args.ogc_records_endpoint:
-                available["ogc-records"] = OgcRecordsConnector(
-                    args.ogc_records_endpoint, client
-                )
+                available["ogc-records"] = OgcRecordsConnector(args.ogc_records_endpoint, client)
             if args.provider == "ogc-records" and not args.ogc_records_endpoint:
                 raise ValueError("--provider ogc-records requires --ogc-records-endpoint")
             selected = (
