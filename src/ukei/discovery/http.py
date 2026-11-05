@@ -49,6 +49,19 @@ def _require_public_dns(url: str) -> None:
             raise DiscoveryError("strict discovery rejected a non-public DNS address")
 
 
+
+def open_public_request(request: Request, timeout_seconds: float) -> Any:
+    """Open a reviewed public HTTPS request without proxies or redirects.
+
+    DNS checks are not connection pinning; restrict use to vetted providers.
+    """
+    if url_error(request.full_url, require_https=True, public_only=True) is not None:
+        raise DiscoveryError("strict discovery requires a public HTTPS endpoint")
+    _require_public_dns(request.full_url)
+    opener = build_opener(ProxyHandler({}), _RejectRedirects())
+    return opener.open(request, timeout=timeout_seconds)
+
+
 class JsonHttpClient:
     """Small injectable transport with HTTPS and response-size guards.
 
@@ -66,7 +79,6 @@ class JsonHttpClient:
         if self.strict_public:
             if url_error(url, require_https=True, public_only=True) is not None:
                 raise DiscoveryError("strict discovery requires a public HTTPS endpoint")
-            _require_public_dns(url)
         request_url = f"{url}?{urlencode(parameters)}"
         request = Request(
             request_url,
@@ -74,9 +86,7 @@ class JsonHttpClient:
         )
         try:
             if self.strict_public:
-                # Avoid environment-provided proxies and automatic HTTP redirects.
-                opener = build_opener(ProxyHandler({}), _RejectRedirects())
-                response_context = opener.open(request, timeout=self.timeout_seconds)
+                response_context = open_public_request(request, self.timeout_seconds)
             else:
                 response_context = urlopen(request, timeout=self.timeout_seconds)
             with response_context as response:
