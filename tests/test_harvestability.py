@@ -13,6 +13,7 @@ from ukei.harvestability import (
     _load_json,
     _load_relevance_csv,
     _machine_readable,
+    _policy_block_category,
     _safe_probe_url,
     _validation_index,
     build_harvestability_manifest,
@@ -203,6 +204,70 @@ def test_manifest_escapes_untrusted_spreadsheet_formulas(tmp_path: Path) -> None
     assert rows[0]["provider"].startswith("'=HYPERLINK")
     evidence = json.loads((tmp_path / "out" / "harvestability-evidence.json").read_text())
     assert evidence["datasets"][0]["members"][0]["publisher"].startswith("=HYPERLINK")
+
+
+@pytest.mark.parametrize(
+    ("failure_reason", "expected"),
+    [
+        ("strict discovery blocked an HTTP redirect", "redirect_disallowed"),
+        ("strict discovery rejected a non-public DNS address", "non_public_dns"),
+        ("strict discovery cannot resolve endpoint", "dns_resolution_failure"),
+        ("strict discovery requires a public HTTPS endpoint", "non_public_endpoint"),
+        ("unclassified transport denial", "other_policy_block"),
+    ],
+)
+def test_policy_block_categories_do_not_expose_untrusted_details(
+    failure_reason: str, expected: str
+) -> None:
+    result = {
+        "details": {"outcome": "blocked_by_policy", "failure_reason": failure_reason}
+    }
+    assert _policy_block_category(result) == expected
+    assert _policy_block_category({"details": {"outcome": "reachable_secure"}}) == ""
+
+
+def test_blocked_probes_remain_unknown_with_dedicated_review_queue(
+    tmp_path: Path,
+) -> None:
+    payload = _catalogue()
+    payload["records"] = [payload["records"][0]]
+    source = tmp_path / "catalogue.json"
+    source.write_text(json.dumps(payload), encoding="utf-8")
+    relevance = tmp_path / "relevance.csv"
+    _write_relevance(relevance)
+
+    def blocked(_source_id: str, _url: str, _timeout: float) -> dict[str, Any]:
+        return {
+            "passed": False,
+            "checked_at": "2026-11-05T13:00:00+00:00",
+            "details": {
+                "outcome": "blocked_by_policy",
+                "failure_reason": "strict discovery blocked an HTTP redirect",
+            },
+        }
+
+    receipt = build_harvestability_manifest(
+        source, tmp_path / "out", relevance_path=relevance, probe=True,
+        probe_function=blocked
+    )
+    assert receipt["live_probes_performed"] == 1
+    assert receipt["reachable_count"] == 0
+    assert receipt["policy_blocked_count"] == 1
+    assert receipt["candidate_for_test_count"] == 0
+    assert receipt["governance"]["scientific_admissibility_conferred"] is False
+    rows = list(csv.DictReader((tmp_path / "out" / "harvestability-manifest.csv").open()))
+    assert rows[0]["reachable"] == "unknown"
+    assert rows[0]["probe_outcome"] == "blocked_by_policy"
+    assert rows[0]["policy_block_category"] == "redirect_disallowed"
+    assert "transport policy review" in rows[0]["reason"]
+    assert rows[0]["sccaq_status"] == "DISCOVERED_ONLY"
+    with (tmp_path / "out" / "policy-block-review.csv").open(newline="") as handle:
+        review = list(csv.DictReader(handle))
+    assert len(review) == 1
+    assert review[0]["dataset_key"] == rows[0]["dataset_key"]
+    assert review[0]["vvip_status"] == "REVIEW_REQUIRED"
+    assert "canonical_url" not in review[0]
+    assert "failure_reason" not in review[0]
 
 
 def test_existing_validation_is_used_without_live_probe(tmp_path: Path) -> None:
