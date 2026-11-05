@@ -24,10 +24,10 @@
     "ratified-data-can-change"
   ],
   "manifest_air_context_count": 284,
-  "manifest_candidate_for_test_count": 24,
+  "manifest_candidate_for_test_count": 2,
   "manifest_provider_count": 96,
   "manifest_record_count": 554,
-  "manifest_sha256": "29b1a640c36a834888a4fd5aa70f3b1ce1f226a7a8124414b60fb59d63371fc6",
+  "manifest_sha256": "ae59bf80b72701264e6c54cdcdeca919bfdcfe82bf6ffe8c9b26acbb7ffeb362",
   "national_network_count": 17,
   "national_network_ids": [
     "acid-gas-aerosol",
@@ -69,7 +69,7 @@
     "tomps",
     "urban-no2"
   ],
-  "receipt_sha256": "1ba2620ec40e782f6aa9557163a74cff82521a28ef32c5e90866045a038f8e1a",
+  "receipt_sha256": "f9b308db06e7c0373eb01d19f1b2c291e2de3d26390f345d77b66ed7299d0e09",
   "registry_reviewed_on": "2026-10-06",
   "registry_sha256": "4f1c5ac279bb86f1253ed551f29f48b34321b5b9f38a2bcdd12b35fc9442e60f",
   "registry_version": 1,
