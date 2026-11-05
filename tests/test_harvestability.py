@@ -219,9 +219,7 @@ def test_manifest_escapes_untrusted_spreadsheet_formulas(tmp_path: Path) -> None
 def test_policy_block_categories_do_not_expose_untrusted_details(
     failure_reason: str, expected: str
 ) -> None:
-    result = {
-        "details": {"outcome": "blocked_by_policy", "failure_reason": failure_reason}
-    }
+    result = {"details": {"outcome": "blocked_by_policy", "failure_reason": failure_reason}}
     assert _policy_block_category(result) == expected
     assert _policy_block_category({"details": {"outcome": "reachable_secure"}}) == ""
 
@@ -247,8 +245,7 @@ def test_blocked_probes_remain_unknown_with_dedicated_review_queue(
         }
 
     receipt = build_harvestability_manifest(
-        source, tmp_path / "out", relevance_path=relevance, probe=True,
-        probe_function=blocked
+        source, tmp_path / "out", relevance_path=relevance, probe=True, probe_function=blocked
     )
     assert receipt["live_probes_performed"] == 1
     assert receipt["reachable_count"] == 0
