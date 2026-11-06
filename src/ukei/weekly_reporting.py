@@ -464,8 +464,10 @@ def _markdown(
 
 def _dashboard(state: dict[str, Any], week: str, changes: dict[str, int] | None) -> str:
     m = state["metrics"]
+
     def esc(value: object) -> str:
         return html.escape(str(value), quote=True)
+
     tiles = [
         ("Catalogued datasets", m["datasets"], "Discovery only"),
         ("Reachable endpoints", m["reachable"], "Not schema-verified"),
