@@ -7,6 +7,7 @@ import io
 import json
 from email.message import Message
 from pathlib import Path
+from urllib.request import Request
 
 import pytest
 
@@ -57,16 +58,16 @@ def test_missing_years_not_silently_certified() -> None:
 
 def test_deduplicates_without_hiding_rejected_redirect_links() -> None:
     raw = (
-        '<a href="auto/2026/atom.en.xml">good</a>'
-        '<a href="auto/2026/atom.en.xml">duplicate</a>'
-        '<a href="https://evil.example.org/data/atom-dls/auto/2025/atom.en.xml">evil</a>'
-        '<a href="https://uk-air.defra.gov.uk/data/atom-dls/auto/2024/atom.en.xml?token=x">'
-        'credential URL</a>'
-        '<a href="http://uk-air.defra.gov.uk/data/atom-dls/auto/2023/atom.en.xml">'
-        'downgrade</a>'
-        '<a href="metadata/atom.en.xml">metadata</a>'
-        '<a href="https://uk-air.defra.gov.uk/other">unrelated</a>'
-    ).encode()
+        b'<a href="auto/2026/atom.en.xml">good</a>'
+        b'<a href="auto/2026/atom.en.xml">duplicate</a>'
+        b'<a href="https://evil.example.org/data/atom-dls/auto/2025/atom.en.xml">evil</a>'
+        b'<a href="https://uk-air.defra.gov.uk/data/atom-dls/auto/2024/atom.en.xml?token=x">'
+        b'credential URL</a>'
+        b'<a href="http://uk-air.defra.gov.uk/data/atom-dls/auto/2023/atom.en.xml">'
+        b'downgrade</a>'
+        b'<a href="metadata/atom.en.xml">metadata</a>'
+        b'<a href="https://uk-air.defra.gov.uk/other">unrelated</a>'
+    )
     receipt = parse_atom_index(raw, reference_year=2026)
     assert receipt["feed_links_found"] == 2
     assert receipt["duplicate_links_seen"] == 1
@@ -127,8 +128,8 @@ class FakeResponse(io.BytesIO):
 def test_bounded_live_index_fetch_delegates_to_strict_transport(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def strict_open(request: object, seconds: float) -> FakeResponse:
-        assert getattr(request, "full_url") == INDEX_URL
+    def strict_open(request: Request, seconds: float) -> FakeResponse:
+        assert request.full_url == INDEX_URL
         assert seconds == 5
         return FakeResponse(index_html())
 
