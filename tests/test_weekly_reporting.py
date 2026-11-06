@@ -108,8 +108,7 @@ def fixture_repo(root: Path) -> None:
         {
             "manifest_sha256": sha((directory / "harvestability-manifest.csv").read_bytes()),
             "coverage_claim": (
-                "INCOMPLETE_UNTIL_REQUIRED_CONNECTORS_"
-                "AND_STATION_RECONCILIATION_PASS"
+                "INCOMPLETE_UNTIL_REQUIRED_CONNECTORS_AND_STATION_RECONCILIATION_PASS"
             ),
             "required_direct_connector_gap_count": 1,
             "required_direct_connector_gaps": ["official-provider-a"],
