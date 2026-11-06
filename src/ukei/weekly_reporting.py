@@ -255,7 +255,7 @@ def _actions(state: dict[str, Any]) -> list[dict[str, str]]:
             "priority": "P0",
             "gate": "Monitoring network coverage",
             "finding": f"{metrics['networks_missing']} inventories lack reconciled stations",
-            "evidence_needed": "Current and closed stations, native IDs and dated registry snapshots",
+            "evidence_needed": "Native active/closed station IDs and registry snapshots",
         },
         {
             "priority": "P0",
@@ -387,7 +387,7 @@ def _markdown(
         [
             "",
             "### 4. Network metadata signals",
-            "| Source system | Jurisdiction | Direct adapter | Catalogue signals | Reachable signals |",
+            "| Source | Jurisdiction | Adapter | Discovery signals | Reachable |",
             "|---|---|---|---:|---:|",
         ]
     )
@@ -418,7 +418,7 @@ def _markdown(
         [
             "",
             "### 6. Historical and scientific interpretation safeguards",
-            "- Reconcile UK-AIR, devolved and local records against native station and network IDs.",
+            "- Reconcile official UK station and network IDs with source-native records.",
             "- Audit yearly completeness, start/end dates, missing intervals, revisions, "
             "retrospective corrections, UTC/BST transitions, units and measurement methods.",
             "- Check ratified versus provisional data, source licences and reuse restrictions.",
