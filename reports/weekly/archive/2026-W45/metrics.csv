@@ -1,0 +1,14 @@
+metric_id,measure,value,previous_week_change,evidence_as_of
+records,Discovery records,587,,2026-11-05T16:40:45+00:00
+datasets,Distinct candidate datasets,554,,2026-11-05T16:40:45+00:00
+relevant,Pollutant-relevant datasets,377,,2026-11-05T16:40:45+00:00
+air_context,Explicit air-context datasets,284,,2026-11-05T16:40:45+00:00
+machine,Machine-readable candidates,321,,2026-11-05T16:40:45+00:00
+probed,Endpoint probes,117,,2026-11-05T16:40:45+00:00
+reachable,Reachable endpoints,93,,2026-11-05T16:40:45+00:00
+policy,Safety-policy blocks,26,,2026-11-05T16:40:45+00:00
+eligible,Candidates for independent tests,1,,2026-11-05T16:40:45+00:00
+adapters_missing,Missing direct provider adapters,15,,2026-11-05T16:40:45+00:00
+networks_missing,Unreconciled monitoring networks,17,,2026-11-05T16:40:45+00:00
+source_systems,Registered source systems,16,,2026-11-05T16:40:45+00:00
+cross_media_sources,Cross-media source signals,403,,2026-11-05T16:40:45+00:00
