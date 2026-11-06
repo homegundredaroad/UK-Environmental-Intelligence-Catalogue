@@ -214,3 +214,364 @@ def write_csv(path: Path, columns: tuple[str, ...], rows: list[dict[str, Any]]) 
 
 def md_cell(value: object) -> str:
     return str(value).replace("|", "\\|").replace("\r", " ").replace("\n", " ")
+
+
+def _actions(state: dict[str, Any]) -> list[dict[str, str]]:
+    metrics = state["metrics"]
+    actions = [
+        {"priority": "P0", "gate": "Official data connectors",
+         "finding": f"{metrics['adapters_missing']} required direct adapters absent",
+         "evidence_needed": "Provider-native endpoint, bounded test and exact schema receipt"},
+        {"priority": "P0", "gate": "Monitoring network coverage",
+         "finding": f"{metrics['networks_missing']} inventories lack reconciled stations",
+         "evidence_needed": "Current and closed stations, native IDs and dated registry snapshots"},
+        {"priority": "P0", "gate": "Transport security",
+         "finding": f"{metrics['policy']} blocked URLs; not confirmed missing",
+         "evidence_needed": "Source-verified redirect origins and secure allowlist review"},
+        {"priority": "P1", "gate": "Historical integrity",
+         "finding": "Historical year-by-network completeness not demonstrated",
+         "evidence_needed": "Original files, versions, checksums, stations and date grids"},
+        {"priority": "P1", "gate": "Scientific admissibility",
+         "finding": "Independent measurement validation and corroboration incomplete",
+         "evidence_needed": "Raw observations, units, QA flags, second-method reproduction"},
+        {"priority": "P1", "gate": "External peer scrutiny",
+         "finding": "Scientific publication approval not present",
+         "evidence_needed": "Named reviewer assessment, limitations and recorded sign-off"},
+    ]
+    if state["stale"]:
+        actions.insert(0, {
+            "priority": "P0", "gate": "Evidence freshness",
+            "finding": "Last harvestability receipt is older than seven days",
+            "evidence_needed": "New source acquisition and reconciled checksum receipt",
+        })
+    return actions
+
+
+def _markdown(
+    state: dict[str, Any],
+    week: str,
+    previous: dict[str, Any] | None,
+    changes: dict[str, int] | None,
+    *,
+    reviewer: bool,
+) -> str:
+    metrics = state["metrics"]
+    actions = _actions(state)
+    lines = [
+        "# SCC Nexus Limited — UK Environmental Intelligence",
+        f"**Weekly review:** {week} | **Evidence as of:** {state['evidence_as_of']}",
+        "",
+        "## Executive summary",
+        f"- **{metrics['datasets']:,}** distinct catalogue candidates, of which only "
+        f"**{metrics['eligible']:,}** currently qualify for independent testing.",
+        f"- **{metrics['policy']:,}** source endpoints were blocked by network policy; "
+        "they have not been established as missing or permanently inaccessible.",
+        f"- **{metrics['adapters_missing']}** official direct adapters and "
+        f"**{metrics['networks_missing']}** monitoring-network enumerations remain missing.",
+        "- **Scientific decision: HOLD.** No claim of national completeness, "
+        "scientific admissibility, exposure effects or historical data accuracy.",
+        f"- Evidence age: **{state['age_days']:.1f} days** — "
+        f"{'STALE' if state['stale'] else 'within 7-day reporting threshold'}.",
+        "",
+        "## Harvestability and coverage",
+        "| Measure | Latest count | Change from prior distinct week |",
+        "|---|---:|---:|",
+    ]
+    for key, label in METRICS.items():
+        delta = "Not available" if changes is None else f"{changes[key]:+d}"
+        lines.append(f"| {label} | {metrics[key]:,} | {delta} |")
+    lines.extend(["", "## Priority recommendations"])
+    for action in actions[:5]:
+        lines.append(
+            f"- **{action['priority']} — {action['gate']}:** {action['finding']}. "
+            f"Evidence needed: {action['evidence_needed']}."
+        )
+    lines.extend([
+        "",
+        "## SCC and VVIP claim boundary",
+        "SCC = Search, Corroborate, Communicate. VVIP = Validation, Verification, "
+        "Integrity, Provenance. Discovery and software checks do not grant scientific "
+        "publication permission. SCC Air Quality reacquires and validates evidence "
+        "independently in its separate project.",
+    ])
+    if not reviewer:
+        return "\n".join(lines) + "\n"
+    coverage = state["coverage"]
+    catalogue = state["catalogue"]
+    lines.extend([
+        "",
+        "---",
+        "## Independent technical and scientific reviewer appendix",
+        "",
+        "### 1. Acquisition provenance and evidence vintage",
+        f"The underlying focused discovery retained "
+        f"{catalogue.get('successful_query_count', 'unknown')} successful searches "
+        f"from {catalogue.get('targeted_query_count', 'unknown')} queries. "
+        "These are from the original recorded discovery run, not fresh weekly observations.",
+        "A weekly report run reads previously committed files only. It does not prove "
+        "any original-provider API or environmental station has been updated this week.",
+        f"Previous comparable week: "
+        f"{previous['week'] if previous and changes is not None else 'none available'}.",
+        "",
+        "### 2. Authoritative source connector gaps",
+        "| Direct source adapter ID | Status |",
+        "|---|---|",
+    ])
+    lines.extend(
+        f"| {md_cell(item)} | MISSING |"
+        for item in coverage["required_direct_connector_gaps"]
+    )
+    lines.extend([
+        "",
+        "### 3. Unreconciled monitoring network inventories",
+        "| Network ID | Status |",
+        "|---|---|",
+    ])
+    lines.extend(
+        f"| {md_cell(item)} | NOT ENUMERATED |"
+        for item in coverage["network_enumeration_gaps"]
+    )
+    lines.extend([
+        "",
+        "### 4. Network metadata signals",
+        "| Source system | Jurisdiction | Direct adapter | Catalogue signals | Reachable signals |",
+        "|---|---|---|---:|---:|",
+    ])
+    for row in state["matrix"]:
+        lines.append(
+            f"| {md_cell(row.get('source_system_id', ''))} "
+            f"| {md_cell(row.get('jurisdiction', ''))} "
+            f"| {md_cell(row.get('direct_connector_status', ''))} "
+            f"| {md_cell(row.get('catalogue_record_matches', ''))} "
+            f"| {md_cell(row.get('reachable_matches', ''))} |"
+        )
+    lines.extend([
+        "",
+        "### 5. Policy-blocked sources by publisher and category",
+        "Safety denials remain UNKNOWN reachability. They must never be automatically "
+        "unblocked, counted as dataset losses or promoted to research-ready.",
+        "| Publisher | Blocked |",
+        "|---|---:|",
+    ])
+    providers = Counter(row.get("provider", "Unknown") for row in state["policy"])
+    lines.extend(f"| {md_cell(k)} | {v} |" for k, v in sorted(providers.items()))
+    lines.extend(["", "| Safety category | Count |", "|---|---:|"])
+    categories = Counter(row.get("policy_block_category", "Unknown") for row in state["policy"])
+    lines.extend(f"| {md_cell(k)} | {v} |" for k, v in sorted(categories.items()))
+    lines.extend([
+        "",
+        "### 6. Historical and scientific interpretation safeguards",
+        "- Reconcile UK-AIR, devolved and local records against native station and network IDs.",
+        "- Audit yearly completeness, start/end dates, missing intervals, revisions, "
+        "retrospective corrections, UTC/BST transitions, units and measurement methods.",
+        "- Check ratified versus provisional data, source licences and reuse restrictions.",
+        "- Validate row-level observation files using independent tools and researchers.",
+        "- Do not treat a year-index URL, successful HTTP request, metadata title or "
+        "automated QA gate as a complete historical time series.",
+        f"- Registry references {coverage.get('historical_revision_rule_count', 'unknown')} "
+        "historical revision rules; these are not evidence of fully exercised checks.",
+        "",
+        "### 7. Verified-input SHA-256 fingerprints",
+        "| Source type | SHA-256 |",
+        "|---|---|",
+    ])
+    lines.extend(
+        f"| {key} | {digest} |" for key, digest in sorted(state["digests"].items())
+    )
+    lines.extend([
+        "",
+        "### 8. Reviewer evidence requests",
+        "| Priority | Review gate | Current limitation | Required new evidence |",
+        "|---|---|---|---|",
+    ])
+    lines.extend(
+        f"| {md_cell(item['priority'])} | {md_cell(item['gate'])} "
+        f"| {md_cell(item['finding'])} | {md_cell(item['evidence_needed'])} |"
+        for item in actions
+    )
+    lines.extend([
+        "",
+        "### 9. Publication and independent scrutiny",
+        "A named scientific reviewer must examine original observations, reproduce "
+        "findings, approve licensing and limitations, and record an explicit decision. "
+        "This report does not constitute that approval.",
+        "The accompanying machine-readable receipt, snapshot, summary metrics, "
+        "gap register and bundle manifest support independent inspection.",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def _dashboard(state: dict[str, Any], week: str, changes: dict[str, int] | None) -> str:
+    m = state["metrics"]
+    esc = lambda value: html.escape(str(value), quote=True)
+    tiles = [
+        ("Catalogued datasets", m["datasets"], "Discovery only"),
+        ("Reachable endpoints", m["reachable"], "Not schema-verified"),
+        ("Policy blocks", m["policy"], "Unknown, under review"),
+        ("Independent-test candidates", m["eligible"], "Not research-ready"),
+        ("Missing adapters", m["adapters_missing"], "Official provider access"),
+        ("Network gaps", m["networks_missing"], "Station-level enumeration"),
+    ]
+    cards = "\n".join(
+        "<article class='tile'><span>" + esc(label) + "</span><strong>"
+        + f"{value:,}" + "</strong><small>" + esc(note) + "</small></article>"
+        for label, value, note in tiles
+    )
+    table = "\n".join(
+        "<tr><th scope='row'>" + esc(label) + "</th><td>"
+        + f"{m[key]:,}" + "</td><td>"
+        + ("No baseline" if changes is None else f"{changes[key]:+d}")
+        + "</td></tr>" for key, label in METRICS.items()
+    )
+    actions = "\n".join(
+        "<li><strong>" + esc(item["gate"]) + "</strong>: " + esc(item["finding"])
+        + "<small>" + esc(item["evidence_needed"]) + "</small></li>"
+        for item in _actions(state)
+    )
+    return f"""<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SCC Nexus | Environmental Weekly {esc(week)}</title>
+<style>
+:root{{--navy:#172846;--gold:#b69a5c;--line:#dce3e9;--muted:#5c6878}}
+*{{box-sizing:border-box}}body{{margin:0;background:#fff;color:#1e2f42;font:16px/1.5 system-ui,sans-serif}}
+header{{background:var(--navy);color:white;padding:2rem max(1.25rem,calc((100vw - 1060px)/2))}}
+.brand{{letter-spacing:.12em;color:#ecd5a4;font-weight:800;font-size:.85rem}}
+h1{{font-size:clamp(1.8rem,4vw,2.7rem);max-width:23ch;line-height:1.2}}
+header p{{color:#dfe7f0;max-width:70ch}}main{{max-width:1060px;margin:auto;padding:1rem 1.2rem 4rem}}
+.tiles{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
+.tile{{background:#f5f6f8;border:1px solid var(--line);border-radius:12px;padding:1rem;display:flex;flex-direction:column}}
+.tile strong{{font-size:2.3rem;color:var(--navy)}}small{{color:var(--muted)}}.tile small{{display:block}}
+h2{{margin-top:2.2rem;border-bottom:2px solid var(--gold);padding-bottom:.3rem}}
+.hold{{background:#fbf6ea;border-left:5px solid var(--gold);padding:1rem}}
+.table-scroll{{overflow-x:auto}}table{{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}}
+th,td{{text-align:left;border-bottom:1px solid var(--line);padding:.5rem}}
+th:not(:first-child),td:not(:first-child){{text-align:right}}
+li{{margin:.7rem 0}}li small{{display:block}}
+footer{{border-top:1px solid var(--line);color:var(--muted);margin-top:2rem;padding-top:1rem}}
+@media print{{.tile{{break-inside:avoid}}header{{print-color-adjust:exact}}}}
+</style></head><body>
+<header><div class="brand">SCC NEXUS LIMITED · SEARCH / CORROBORATE / COMMUNICATE</div>
+<h1>UK Environmental Intelligence — Weekly Evidence Review</h1>
+<p>Week {esc(week)} · Source evidence as of {esc(state['evidence_as_of'])} ·
+{esc('STALE' if state['stale'] else 'within 7-day freshness threshold')}</p></header>
+<main><section><h2>Executive position</h2>
+<p class="hold"><strong>Scientific release: HOLD.</strong> Source discovery,
+URL reachability and software checks do not establish scientific quality,
+national coverage, exposure or health outcomes.</p>
+<div class="tiles">{cards}</div></section>
+<section><h2>All tracked metrics</h2>
+<p>Differences require an earlier distinct reporting week; a missing baseline is not zero change.</p>
+<div class="table-scroll"><table><thead><tr><th>Metric</th><th>Latest</th><th>Weekly difference</th>
+</tr></thead><tbody>{table}</tbody></table></div></section>
+<section><h2>Priority reviewer actions</h2><ol>{actions}</ol></section>
+<footer><strong>SCC/VVIP</strong> · Validation · Verification · Integrity · Provenance.
+Original-provider reacquisition and independent human approval required. The complete
+scientific reviewer appendix, input hashes and machine-readable receipt are in this report pack.
+The separate SCC Air Quality repository is not modified.</footer></main></body></html>"""
+
+
+def build_weekly(
+    root: Path,
+    output: Path,
+    *,
+    archive: Path | None = None,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    timestamp = (now or datetime.now(UTC)).astimezone(UTC)
+    iso = timestamp.isocalendar()
+    week = f"{iso.year}-W{iso.week:02d}"
+    state = gather(root, timestamp)
+    prior = previous_week(archive, week)
+    prior_metrics = prior.get("metrics") if prior else None
+    changes = (
+        {key: value - prior_metrics[key] for key, value in state["metrics"].items()}
+        if isinstance(prior_metrics, dict)
+        and all(type(prior_metrics.get(key)) is int for key in state["metrics"])
+        else None
+    )
+    output.mkdir(parents=True, exist_ok=True)
+    snapshot = {
+        "schema": SCHEMA, "week": week, "metrics": state["metrics"],
+        "evidence_as_of": state["evidence_as_of"], "source_digests": state["digests"],
+        "scientific_release": "HOLD", "national_completeness": "NOT_VERIFIED",
+    }
+    snap_bytes = (json.dumps(snapshot, sort_keys=True, indent=2) + "\n").encode()
+    (output / "snapshot.json").write_bytes(snap_bytes)
+    (output / "public-summary.md").write_text(
+        _markdown(state, week, prior, changes, reviewer=False), encoding="utf-8"
+    )
+    (output / "reviewer-report.md").write_text(
+        _markdown(state, week, prior, changes, reviewer=True), encoding="utf-8"
+    )
+    (output / "dashboard.html").write_text(
+        _dashboard(state, week, changes), encoding="utf-8"
+    )
+    write_csv(
+        output / "metrics.csv",
+        ("metric_id", "measure", "value", "previous_week_change", "evidence_as_of"),
+        [{"metric_id": key, "measure": label, "value": state["metrics"][key],
+          "previous_week_change": "" if changes is None else changes[key],
+          "evidence_as_of": state["evidence_as_of"]} for key, label in METRICS.items()],
+    )
+    coverage = state["coverage"]
+    gaps = (
+        [{"priority": "P0", "kind": "direct_adapter", "identifier": item, "status": "MISSING"}
+         for item in coverage["required_direct_connector_gaps"]]
+        + [{"priority": "P0", "kind": "station_inventory", "identifier": item,
+            "status": "NOT_ENUMERATED"} for item in coverage["network_enumeration_gaps"]]
+    )
+    write_csv(output / "gap-register.csv", ("priority", "kind", "identifier", "status"), gaps)
+    write_csv(
+        output / "action-register.csv",
+        ("priority", "gate", "finding", "evidence_needed"), _actions(state)
+    )
+    receipt = {
+        "schema": SCHEMA, "report_week": week, "generated_at_utc": timestamp.isoformat(),
+        "evidence_as_of": state["evidence_as_of"],
+        "evidence_age_days": state["age_days"],
+        "freshness_status": "STALE" if state["stale"] else "WITHIN_SEVEN_DAYS",
+        "comparison_week": prior["week"] if changes is not None and prior else None,
+        "comparisons_supported": changes is not None, "changes": changes,
+        "metrics": state["metrics"], "source_sha256": state["digests"],
+        "snapshot_sha256": sha(snap_bytes),
+        "technical_reporting_gate": "PASS", "scientific_release": "HOLD",
+        "national_completeness": "NOT_VERIFIED",
+        "scientific_publication_approved": False,
+        "external_review_completed": False,
+        "sibling_repositories_modified": False,
+        "vvip": {"validation": "INDEPENDENT_TEST_REQUIRED",
+                 "verification": "INDEPENDENT_REACQUISITION_REQUIRED",
+                 "integrity": "CHECKSUM_RECONCILED",
+                 "provenance": "INPUT_DIGESTS_ATTACHED"},
+    }
+    (output / "receipt.json").write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    hashes = {
+        p.name: sha(p.read_bytes())
+        for p in sorted(output.iterdir())
+        if p.is_file() and p.name != "bundle-manifest.json"
+    }
+    (output / "bundle-manifest.json").write_text(
+        json.dumps({"schema": "scc-weekly-artifact-manifest/1", "week": week,
+                    "file_sha256": hashes, "human_approval_present": False},
+                   indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return receipt
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="SCC Nexus weekly UK Environmental Intelligence reporting"
+    )
+    parser.add_argument("--root", type=Path, default=Path("."))
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--archive", type=Path)
+    args = parser.parse_args(argv)
+    print(json.dumps(build_weekly(args.root, args.output, archive=args.archive), sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
