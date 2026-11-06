@@ -28,9 +28,7 @@ SCHEMA = "scc_ukair_atom_index_discovery_v1"
 MAX_INDEX_BYTES = 2_000_000
 FIRST_PUBLISHED_YEAR = 1973
 _SERIES = ("auto", "non-auto", "aggregated")
-_FEED_PATTERN = re.compile(
-    r"/data/atom-dls/(auto|non-auto|aggregated)/(\d{4})/atom\.en\.xml"
-)
+_FEED_PATTERN = re.compile(r"/data/atom-dls/(auto|non-auto|aggregated)/(\d{4})/atom\.en\.xml")
 _METADATA_PATH = "/data/atom-dls/metadata/atom.en.xml"
 _ORIGIN = ("https", "uk-air.defra.gov.uk")
 
