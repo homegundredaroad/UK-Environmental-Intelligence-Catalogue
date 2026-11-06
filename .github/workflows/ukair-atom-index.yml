@@ -1,0 +1,85 @@
+name: SCC UK-AIR Atom historical index discovery
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/ukair-atom-index.yml"
+      - "src/ukei/uk_air_atom.py"
+      - "tests/test_uk_air_atom.py"
+      - "docs/ukair-atom-historical-index.md"
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 2 * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ukair-atom-index
+  cancel-in-progress: true
+
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install catalogue
+        run: python -m pip install .
+
+      - name: Fetch official source index with bounded strict transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          year="$(date -u +%Y)"
+          python -m ukei.uk_air_atom \
+            --live --year "${year}" --timeout 10 \
+            --output "${RUNNER_TEMP}/ukair-atom-index" \
+            > "${RUNNER_TEMP}/ukair-atom-index-stdout.json"
+
+      - name: Verify SCC and VVIP release boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "ukair-atom-index"
+          receipt = json.loads((root / "atom-index-receipt.json").read_text())
+          assert receipt["schema"] == "scc_ukair_atom_index_discovery_v1"
+          assert receipt["acquisition_mode"] == "LIVE"
+          assert receipt["release_state"] == "REVIEW_REQUIRED"
+          assert receipt["scientific_admissibility_conferred"] is False
+          assert receipt["publication_allowed"] is False
+          assert receipt["national_completeness_claimed"] is False
+          assert receipt["observation_files_downloaded"] == 0
+          assert receipt["source_index_sha256"]
+          assert receipt["manifest_sha256"]
+          print(
+              "SCC/VVIP candidate-only: "
+              f"{receipt['feed_links_found']} links; "
+              f"{receipt['rejected_feed_links']} unsafe feed links; "
+              f"all index years represented={receipt['index_has_all_year_links']}"
+          )
+          PY
+
+      - name: Retain raw source and inspectable run receipts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scc-ukair-atom-historical-index
+          path: |
+            ${{ runner.temp }}/ukair-atom-index/
+            ${{ runner.temp }}/ukair-atom-index-stdout.json
+          retention-days: 30
+          if-no-files-found: warn
