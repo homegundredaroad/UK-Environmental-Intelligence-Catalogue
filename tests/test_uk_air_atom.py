@@ -37,13 +37,14 @@ def test_exact_historical_index_inventory_is_links_not_data() -> None:
     result = parse_atom_index(index_html(full=True), reference_year=2026)
     assert result["feed_links_found"] == 163
     assert result["category_counts"] == {
-        "auto": 54, "non-auto": 54, "aggregated": 54, "metadata": 1
+        "auto": 54,
+        "non-auto": 54,
+        "aggregated": 54,
+        "metadata": 1,
     }
     assert result["index_has_all_year_links"] is True
     assert result["metadata_link_present"] is True
-    assert result["missing_index_years"] == {
-        "auto": [], "non-auto": [], "aggregated": []
-    }
+    assert result["missing_index_years"] == {"auto": [], "non-auto": [], "aggregated": []}
     assert all(item["status"] == "CANDIDATE_METADATA_ONLY" for item in result["rows"])
     assert all(item["vvip_review"] == "REVIEW_REQUIRED" for item in result["rows"])
 
@@ -62,9 +63,9 @@ def test_deduplicates_without_hiding_rejected_redirect_links() -> None:
         b'<a href="auto/2026/atom.en.xml">duplicate</a>'
         b'<a href="https://evil.example.org/data/atom-dls/auto/2025/atom.en.xml">evil</a>'
         b'<a href="https://uk-air.defra.gov.uk/data/atom-dls/auto/2024/atom.en.xml?token=x">'
-        b'credential URL</a>'
+        b"credential URL</a>"
         b'<a href="http://uk-air.defra.gov.uk/data/atom-dls/auto/2023/atom.en.xml">'
-        b'downgrade</a>'
+        b"downgrade</a>"
         b'<a href="metadata/atom.en.xml">metadata</a>'
         b'<a href="https://uk-air.defra.gov.uk/other">unrelated</a>'
     )
@@ -95,18 +96,17 @@ def test_inventory_retains_bytes_and_explicit_admissibility_hold(tmp_path: Path)
     receipt = build_inventory(tmp_path, raw_html=raw, reference_year=2026, live=False)
     assert (tmp_path / "atom-index-original.html").read_bytes() == raw
     assert receipt["source_index_sha256"] == hashlib.sha256(raw).hexdigest()
-    assert receipt["manifest_sha256"] == hashlib.sha256(
-        (tmp_path / "atom-index-manifest.csv").read_bytes()
-    ).hexdigest()
+    assert (
+        receipt["manifest_sha256"]
+        == hashlib.sha256((tmp_path / "atom-index-manifest.csv").read_bytes()).hexdigest()
+    )
     assert receipt["observation_files_downloaded"] == 0
     assert receipt["release_state"] == "REVIEW_REQUIRED"
     assert receipt["scientific_admissibility_conferred"] is False
     assert receipt["national_completeness_claimed"] is False
     assert receipt["publication_allowed"] is False
     assert receipt["acquisition_mode"] == "OFFLINE_INPUT"
-    assert json.loads(
-        (tmp_path / "atom-index-receipt.json").read_text()
-    )["feed_links_found"] == 163
+    assert json.loads((tmp_path / "atom-index-receipt.json").read_text())["feed_links_found"] == 163
 
 
 class FakeResponse(io.BytesIO):
@@ -187,7 +187,9 @@ def test_cli_offline_workflow_writes_three_reviewable_outputs(
     assert response["feed_links_found"] == 163
     assert response["observation_files_downloaded"] == 0
     assert sorted(file.name for file in dest.iterdir()) == [
-        "atom-index-manifest.csv", "atom-index-original.html", "atom-index-receipt.json"
+        "atom-index-manifest.csv",
+        "atom-index-original.html",
+        "atom-index-receipt.json",
     ]
 
 
