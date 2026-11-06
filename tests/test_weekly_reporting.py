@@ -13,7 +13,12 @@ from ukei.weekly_reporting import (
     SCHEMA,
     EvidenceError,
     build_weekly,
+    checked_at,
+    count,
     csv_safe,
+    main,
+    read_json,
+    read_rows,
     sha,
 )
 
@@ -247,3 +252,126 @@ def test_formula_injection_cells_are_neutralised() -> None:
 def test_missing_receipts_are_not_silently_replaced(tmp_path: Path) -> None:
     with pytest.raises(EvidenceError, match="mandatory evidence file"):
         build_weekly(tmp_path, tmp_path / "output", now=NOW)
+
+
+@pytest.mark.parametrize("bad", [-1, True, None, "one"])
+def test_invalid_metric_count_is_rejected(bad: object) -> None:
+    with pytest.raises(EvidenceError, match="invalid count"):
+        count(bad, "test")
+
+
+@pytest.mark.parametrize("bad", [None, 12, "", "not-a-timestamp", "2026-11-05T16:00:00"])
+def test_missing_or_naive_timestamps_fail_closed(bad: object) -> None:
+    with pytest.raises(EvidenceError, match="timestamp|date"):
+        checked_at(bad)
+
+
+def test_receipt_json_must_be_readable_object(tmp_path: Path) -> None:
+    path = tmp_path / "sample.json"
+    path.write_text("{oops", encoding="utf-8")
+    with pytest.raises(EvidenceError, match="unreadable JSON"):
+        read_json(path)
+    path.write_text("[]", encoding="utf-8")
+    with pytest.raises(EvidenceError, match="invalid JSON object"):
+        read_json(path)
+    with pytest.raises(EvidenceError, match="missing evidence"):
+        read_json(tmp_path / "missing.json")
+
+
+def test_csv_requires_headers_and_valid_cells(tmp_path: Path) -> None:
+    path = tmp_path / "data.csv"
+    path.write_text("", encoding="utf-8")
+    with pytest.raises(EvidenceError, match="CSV headers"):
+        read_rows(path)
+    path.write_text("one,two\n1,2,3\n", encoding="utf-8")
+    with pytest.raises(EvidenceError, match="malformed CSV"):
+        read_rows(path)
+    with pytest.raises(EvidenceError, match="missing evidence"):
+        read_rows(tmp_path / "missing.csv")
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        ("handoff", "scientific release boundary"),
+        ("harvest", "scientific release boundary"),
+        ("coverage", "scientific release boundary"),
+    ],
+)
+def test_unapproved_scientific_promotion_is_blocked(
+    tmp_path: Path, source: str, message: str
+) -> None:
+    fixture_repo(tmp_path)
+    base = tmp_path / "handoff/sccairquality"
+    names = {
+        "handoff": base / "handoff-receipt.json",
+        "harvest": base / "harvestability/harvestability-receipt.json",
+        "coverage": base / "harvestability/authoritative-coverage-receipt.json",
+    }
+    path = names[source]
+    document = json.loads(path.read_text())
+    document["governance"]["scientific_admissibility_conferred"] = True
+    write_json(path, document)
+    with pytest.raises(EvidenceError, match=message):
+        build_weekly(tmp_path, tmp_path / "output", now=NOW)
+
+
+def test_source_receipts_cannot_disagree_on_record_counts(tmp_path: Path) -> None:
+    fixture_repo(tmp_path)
+    path = tmp_path / "handoff/sccairquality/run-receipt.json"
+    document = json.loads(path.read_text())
+    document["catalogue_record_count"] = 1000
+    write_json(path, document)
+    with pytest.raises(EvidenceError, match="record counts differ"):
+        build_weekly(tmp_path, tmp_path / "output", now=NOW)
+
+
+def test_policy_review_count_must_reconcile(tmp_path: Path) -> None:
+    fixture_repo(tmp_path)
+    path = tmp_path / "handoff/sccairquality/harvestability/harvestability-receipt.json"
+    document = json.loads(path.read_text())
+    document["policy_blocked_count"] = 3
+    write_json(path, document)
+    with pytest.raises(EvidenceError, match="manifest policy count"):
+        build_weekly(tmp_path, tmp_path / "output", now=NOW)
+
+
+def test_source_system_matrix_must_reconcile(tmp_path: Path) -> None:
+    fixture_repo(tmp_path)
+    path = tmp_path / "handoff/sccairquality/harvestability/authoritative-coverage-receipt.json"
+    document = json.loads(path.read_text())
+    document["source_system_count"] = 20
+    write_json(path, document)
+    with pytest.raises(EvidenceError, match="source-system count"):
+        build_weekly(tmp_path, tmp_path / "output", now=NOW)
+
+
+def test_future_evidence_receipt_is_blocked(tmp_path: Path) -> None:
+    fixture_repo(tmp_path)
+    path = tmp_path / "handoff/sccairquality/harvestability/harvestability-receipt.json"
+    document = json.loads(path.read_text())
+    document["generated_at_utc"] = "2026-12-01T15:00:00+00:00"
+    write_json(path, document)
+    with pytest.raises(EvidenceError, match="future-dated"):
+        build_weekly(tmp_path, tmp_path / "output", now=NOW)
+
+
+def test_cli_reports_verified_status_without_network(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fixture_repo(tmp_path)
+    assert main(["--root", str(tmp_path), "--output", str(tmp_path / "cli-output")]) == 0
+    receipt = json.loads(capsys.readouterr().out)
+    assert receipt["scientific_release"] == "HOLD"
+    assert receipt["technical_reporting_gate"] == "PASS"
+    assert (tmp_path / "cli-output/reviewer-report.md").exists()
+
+
+def test_unknown_prior_snapshot_format_is_ignored(tmp_path: Path) -> None:
+    fixture_repo(tmp_path)
+    path = tmp_path / "archive/2026-W43/snapshot.json"
+    write_json(path, {"schema": "older-format", "week": "2026-W43"})
+    receipt = build_weekly(
+        tmp_path, tmp_path / "output", now=NOW, archive=tmp_path / "archive"
+    )
+    assert receipt["comparisons_supported"] is False
