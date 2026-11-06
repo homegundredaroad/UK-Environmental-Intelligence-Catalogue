@@ -95,9 +95,11 @@ def check_governance(data: dict[str, Any], source: str) -> None:
     g = data.get("governance")
     if not isinstance(g, dict):
         raise EvidenceError(f"missing governance: {source}")
-    if (g.get("review_status") != "REVIEW_REQUIRED"
+    if (
+        g.get("review_status") != "REVIEW_REQUIRED"
         or g.get("scientific_admissibility_conferred") is not False
-        or g.get("production_change_authorised") is not False):
+        or g.get("production_change_authorised") is not False
+    ):
         raise EvidenceError(f"scientific release boundary failed: {source}")
 
 
@@ -115,8 +117,10 @@ def gather(root: Path, now: datetime) -> dict[str, Any]:
     policy = read_rows(paths["policy"])
     for name, item in (("handoff", handoff), ("harvest", harvest), ("coverage", coverage)):
         check_governance(item, name)
-    if (catalogue.get("review_status") != "REVIEW_REQUIRED"
-        or catalogue.get("scientific_admissibility_conferred") is not False):
+    if (
+        catalogue.get("review_status") != "REVIEW_REQUIRED"
+        or catalogue.get("scientific_admissibility_conferred") is not False
+    ):
         raise EvidenceError("focused catalogue scientific gate failed")
     if coverage.get("manifest_sha256") != digests["manifest"]:
         raise EvidenceError("coverage receipt references a different manifest checksum")
@@ -154,16 +158,28 @@ def gather(root: Path, now: datetime) -> dict[str, Any]:
             sum(r.get("reachable") == "yes" for r in manifest),
             "reachable count",
         ),
-        (metrics["eligible"], sum(r.get("sccaq_status") == "CANDIDATE_FOR_TEST"
-                                 for r in manifest), "eligible count"),
-        (metrics["policy"], sum(r.get("probe_outcome") == "blocked_by_policy"
-                               for r in manifest), "manifest policy count"),
+        (
+            metrics["eligible"],
+            sum(r.get("sccaq_status") == "CANDIDATE_FOR_TEST" for r in manifest),
+            "eligible count",
+        ),
+        (
+            metrics["policy"],
+            sum(r.get("probe_outcome") == "blocked_by_policy" for r in manifest),
+            "manifest policy count",
+        ),
         (metrics["policy"], len(policy), "policy queue count"),
         (metrics["source_systems"], len(matrix), "source-system count"),
-        (metrics["adapters_missing"], len(coverage.get("required_direct_connector_gaps", [])),
-         "direct adapter ledger"),
-        (metrics["networks_missing"], len(coverage.get("network_enumeration_gaps", [])),
-         "station gap ledger"),
+        (
+            metrics["adapters_missing"],
+            len(coverage.get("required_direct_connector_gaps", [])),
+            "direct adapter ledger",
+        ),
+        (
+            metrics["networks_missing"],
+            len(coverage.get("network_enumeration_gaps", [])),
+            "station gap ledger",
+        ),
     )
     for expected, actual, label in comparisons:
         if expected != actual:
@@ -172,22 +188,28 @@ def gather(root: Path, now: datetime) -> dict[str, Any]:
     if len({r.get("dataset_key") for r in policy}) != len(policy):
         raise EvidenceError("duplicate policy queue dataset IDs")
     for row in policy:
-        if (row.get("dataset_key") not in ids
-            or row.get("vvip_status") != "REVIEW_REQUIRED"):
+        if row.get("dataset_key") not in ids or row.get("vvip_status") != "REVIEW_REQUIRED":
             raise EvidenceError("policy queue provenance or VVIP status invalid")
     for row in manifest:
-        if (row.get("probe_outcome") == "blocked_by_policy"
-            and (row.get("reachable") != "unknown"
-                 or row.get("sccaq_status") != "DISCOVERED_ONLY")):
+        if row.get("probe_outcome") == "blocked_by_policy" and (
+            row.get("reachable") != "unknown" or row.get("sccaq_status") != "DISCOVERED_ONLY"
+        ):
             raise EvidenceError("a blocked source was misclassified or promoted")
     stamp = checked_at(harvest.get("generated_at_utc"))
     if stamp > now:
         raise EvidenceError("future-dated evidence")
     return {
-        "metrics": metrics, "digests": digests, "catalogue": catalogue, "handoff": handoff,
-        "harvest": harvest, "coverage": coverage, "matrix": matrix, "policy": policy,
+        "metrics": metrics,
+        "digests": digests,
+        "catalogue": catalogue,
+        "handoff": handoff,
+        "harvest": harvest,
+        "coverage": coverage,
+        "matrix": matrix,
+        "policy": policy,
         "age_days": round((now - stamp).total_seconds() / 86400, 2),
-        "evidence_as_of": stamp.isoformat(), "stale": (now - stamp).days >= 7,
+        "evidence_as_of": stamp.isoformat(),
+        "stale": (now - stamp).days >= 7,
     }
 
 
@@ -223,31 +245,53 @@ def md_cell(value: object) -> str:
 def _actions(state: dict[str, Any]) -> list[dict[str, str]]:
     metrics = state["metrics"]
     actions = [
-        {"priority": "P0", "gate": "Official data connectors",
-         "finding": f"{metrics['adapters_missing']} required direct adapters absent",
-         "evidence_needed": "Provider-native endpoint, bounded test and exact schema receipt"},
-        {"priority": "P0", "gate": "Monitoring network coverage",
-         "finding": f"{metrics['networks_missing']} inventories lack reconciled stations",
-         "evidence_needed": "Current and closed stations, native IDs and dated registry snapshots"},
-        {"priority": "P0", "gate": "Transport security",
-         "finding": f"{metrics['policy']} blocked URLs; not confirmed missing",
-         "evidence_needed": "Source-verified redirect origins and secure allowlist review"},
-        {"priority": "P1", "gate": "Historical integrity",
-         "finding": "Historical year-by-network completeness not demonstrated",
-         "evidence_needed": "Original files, versions, checksums, stations and date grids"},
-        {"priority": "P1", "gate": "Scientific admissibility",
-         "finding": "Independent measurement validation and corroboration incomplete",
-         "evidence_needed": "Raw observations, units, QA flags, second-method reproduction"},
-        {"priority": "P1", "gate": "External peer scrutiny",
-         "finding": "Scientific publication approval not present",
-         "evidence_needed": "Named reviewer assessment, limitations and recorded sign-off"},
+        {
+            "priority": "P0",
+            "gate": "Official data connectors",
+            "finding": f"{metrics['adapters_missing']} required direct adapters absent",
+            "evidence_needed": "Provider-native endpoint, bounded test and exact schema receipt",
+        },
+        {
+            "priority": "P0",
+            "gate": "Monitoring network coverage",
+            "finding": f"{metrics['networks_missing']} inventories lack reconciled stations",
+            "evidence_needed": "Current and closed stations, native IDs and dated registry snapshots",
+        },
+        {
+            "priority": "P0",
+            "gate": "Transport security",
+            "finding": f"{metrics['policy']} blocked URLs; not confirmed missing",
+            "evidence_needed": "Source-verified redirect origins and secure allowlist review",
+        },
+        {
+            "priority": "P1",
+            "gate": "Historical integrity",
+            "finding": "Historical year-by-network completeness not demonstrated",
+            "evidence_needed": "Original files, versions, checksums, stations and date grids",
+        },
+        {
+            "priority": "P1",
+            "gate": "Scientific admissibility",
+            "finding": "Independent measurement validation and corroboration incomplete",
+            "evidence_needed": "Raw observations, units, QA flags, second-method reproduction",
+        },
+        {
+            "priority": "P1",
+            "gate": "External peer scrutiny",
+            "finding": "Scientific publication approval not present",
+            "evidence_needed": "Named reviewer assessment, limitations and recorded sign-off",
+        },
     ]
     if state["stale"]:
-        actions.insert(0, {
-            "priority": "P0", "gate": "Evidence freshness",
-            "finding": "Last harvestability receipt is older than seven days",
-            "evidence_needed": "New source acquisition and reconciled checksum receipt",
-        })
+        actions.insert(
+            0,
+            {
+                "priority": "P0",
+                "gate": "Evidence freshness",
+                "finding": "Last harvestability receipt is older than seven days",
+                "evidence_needed": "New source acquisition and reconciled checksum receipt",
+            },
+        )
     return actions
 
 
@@ -290,57 +334,63 @@ def _markdown(
             f"- **{action['priority']} — {action['gate']}:** {action['finding']}. "
             f"Evidence needed: {action['evidence_needed']}."
         )
-    lines.extend([
-        "",
-        "## SCC and VVIP claim boundary",
-        "SCC = Search, Corroborate, Communicate. VVIP = Validation, Verification, "
-        "Integrity, Provenance. Discovery and software checks do not grant scientific "
-        "publication permission. SCC Air Quality reacquires and validates evidence "
-        "independently in its separate project.",
-    ])
+    lines.extend(
+        [
+            "",
+            "## SCC and VVIP claim boundary",
+            "SCC = Search, Corroborate, Communicate. VVIP = Validation, Verification, "
+            "Integrity, Provenance. Discovery and software checks do not grant scientific "
+            "publication permission. SCC Air Quality reacquires and validates evidence "
+            "independently in its separate project.",
+        ]
+    )
     if not reviewer:
         return "\n".join(lines) + "\n"
     coverage = state["coverage"]
     catalogue = state["catalogue"]
-    lines.extend([
-        "",
-        "---",
-        "## Independent technical and scientific reviewer appendix",
-        "",
-        "### 1. Acquisition provenance and evidence vintage",
-        f"The underlying focused discovery retained "
-        f"{catalogue.get('successful_query_count', 'unknown')} successful searches "
-        f"from {catalogue.get('targeted_query_count', 'unknown')} queries. "
-        "These are from the original recorded discovery run, not fresh weekly observations.",
-        "A weekly report run reads previously committed files only. It does not prove "
-        "any original-provider API or environmental station has been updated this week.",
-        f"Previous comparable week: "
-        f"{previous['week'] if previous and changes is not None else 'none available'}.",
-        "",
-        "### 2. Authoritative source connector gaps",
-        "| Direct source adapter ID | Status |",
-        "|---|---|",
-    ])
     lines.extend(
-        f"| {md_cell(item)} | MISSING |"
-        for item in coverage["required_direct_connector_gaps"]
+        [
+            "",
+            "---",
+            "## Independent technical and scientific reviewer appendix",
+            "",
+            "### 1. Acquisition provenance and evidence vintage",
+            f"The underlying focused discovery retained "
+            f"{catalogue.get('successful_query_count', 'unknown')} successful searches "
+            f"from {catalogue.get('targeted_query_count', 'unknown')} queries. "
+            "These are from the original recorded discovery run, not fresh weekly observations.",
+            "A weekly report run reads previously committed files only. It does not prove "
+            "any original-provider API or environmental station has been updated this week.",
+            f"Previous comparable week: "
+            f"{previous['week'] if previous and changes is not None else 'none available'}.",
+            "",
+            "### 2. Authoritative source connector gaps",
+            "| Direct source adapter ID | Status |",
+            "|---|---|",
+        ]
     )
-    lines.extend([
-        "",
-        "### 3. Unreconciled monitoring network inventories",
-        "| Network ID | Status |",
-        "|---|---|",
-    ])
     lines.extend(
-        f"| {md_cell(item)} | NOT ENUMERATED |"
-        for item in coverage["network_enumeration_gaps"]
+        f"| {md_cell(item)} | MISSING |" for item in coverage["required_direct_connector_gaps"]
     )
-    lines.extend([
-        "",
-        "### 4. Network metadata signals",
-        "| Source system | Jurisdiction | Direct adapter | Catalogue signals | Reachable signals |",
-        "|---|---|---|---:|---:|",
-    ])
+    lines.extend(
+        [
+            "",
+            "### 3. Unreconciled monitoring network inventories",
+            "| Network ID | Status |",
+            "|---|---|",
+        ]
+    )
+    lines.extend(
+        f"| {md_cell(item)} | NOT ENUMERATED |" for item in coverage["network_enumeration_gaps"]
+    )
+    lines.extend(
+        [
+            "",
+            "### 4. Network metadata signals",
+            "| Source system | Jurisdiction | Direct adapter | Catalogue signals | Reachable signals |",
+            "|---|---|---|---:|---:|",
+        ]
+    )
     for row in state["matrix"]:
         lines.append(
             f"| {md_cell(row.get('source_system_id', ''))} "
@@ -349,60 +399,66 @@ def _markdown(
             f"| {md_cell(row.get('catalogue_record_matches', ''))} "
             f"| {md_cell(row.get('reachable_matches', ''))} |"
         )
-    lines.extend([
-        "",
-        "### 5. Policy-blocked sources by publisher and category",
-        "Safety denials remain UNKNOWN reachability. They must never be automatically "
-        "unblocked, counted as dataset losses or promoted to research-ready.",
-        "| Publisher | Blocked |",
-        "|---|---:|",
-    ])
+    lines.extend(
+        [
+            "",
+            "### 5. Policy-blocked sources by publisher and category",
+            "Safety denials remain UNKNOWN reachability. They must never be automatically "
+            "unblocked, counted as dataset losses or promoted to research-ready.",
+            "| Publisher | Blocked |",
+            "|---|---:|",
+        ]
+    )
     providers = Counter(row.get("provider", "Unknown") for row in state["policy"])
     lines.extend(f"| {md_cell(k)} | {v} |" for k, v in sorted(providers.items()))
     lines.extend(["", "| Safety category | Count |", "|---|---:|"])
     categories = Counter(row.get("policy_block_category", "Unknown") for row in state["policy"])
     lines.extend(f"| {md_cell(k)} | {v} |" for k, v in sorted(categories.items()))
-    lines.extend([
-        "",
-        "### 6. Historical and scientific interpretation safeguards",
-        "- Reconcile UK-AIR, devolved and local records against native station and network IDs.",
-        "- Audit yearly completeness, start/end dates, missing intervals, revisions, "
-        "retrospective corrections, UTC/BST transitions, units and measurement methods.",
-        "- Check ratified versus provisional data, source licences and reuse restrictions.",
-        "- Validate row-level observation files using independent tools and researchers.",
-        "- Do not treat a year-index URL, successful HTTP request, metadata title or "
-        "automated QA gate as a complete historical time series.",
-        f"- Registry references {coverage.get('historical_revision_rule_count', 'unknown')} "
-        "historical revision rules; these are not evidence of fully exercised checks.",
-        "",
-        "### 7. Verified-input SHA-256 fingerprints",
-        "| Source type | SHA-256 |",
-        "|---|---|",
-    ])
     lines.extend(
-        f"| {key} | {digest} |" for key, digest in sorted(state["digests"].items())
+        [
+            "",
+            "### 6. Historical and scientific interpretation safeguards",
+            "- Reconcile UK-AIR, devolved and local records against native station and network IDs.",
+            "- Audit yearly completeness, start/end dates, missing intervals, revisions, "
+            "retrospective corrections, UTC/BST transitions, units and measurement methods.",
+            "- Check ratified versus provisional data, source licences and reuse restrictions.",
+            "- Validate row-level observation files using independent tools and researchers.",
+            "- Do not treat a year-index URL, successful HTTP request, metadata title or "
+            "automated QA gate as a complete historical time series.",
+            f"- Registry references {coverage.get('historical_revision_rule_count', 'unknown')} "
+            "historical revision rules; these are not evidence of fully exercised checks.",
+            "",
+            "### 7. Verified-input SHA-256 fingerprints",
+            "| Source type | SHA-256 |",
+            "|---|---|",
+        ]
     )
-    lines.extend([
-        "",
-        "### 8. Reviewer evidence requests",
-        "| Priority | Review gate | Current limitation | Required new evidence |",
-        "|---|---|---|---|",
-    ])
+    lines.extend(f"| {key} | {digest} |" for key, digest in sorted(state["digests"].items()))
+    lines.extend(
+        [
+            "",
+            "### 8. Reviewer evidence requests",
+            "| Priority | Review gate | Current limitation | Required new evidence |",
+            "|---|---|---|---|",
+        ]
+    )
     lines.extend(
         f"| {md_cell(item['priority'])} | {md_cell(item['gate'])} "
         f"| {md_cell(item['finding'])} | {md_cell(item['evidence_needed'])} |"
         for item in actions
     )
-    lines.extend([
-        "",
-        "### 9. Publication and independent scrutiny",
-        "A named scientific reviewer must examine original observations, reproduce "
-        "findings, approve licensing and limitations, and record an explicit decision. "
-        "This report does not constitute that approval.",
-        "The accompanying machine-readable receipt, snapshot, summary metrics, "
-        "gap register and bundle manifest support independent inspection.",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "### 9. Publication and independent scrutiny",
+            "A named scientific reviewer must examine original observations, reproduce "
+            "findings, approve licensing and limitations, and record an explicit decision. "
+            "This report does not constitute that approval.",
+            "The accompanying machine-readable receipt, snapshot, summary metrics, "
+            "gap register and bundle manifest support independent inspection.",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -419,19 +475,33 @@ def _dashboard(state: dict[str, Any], week: str, changes: dict[str, int] | None)
         ("Network gaps", m["networks_missing"], "Station-level enumeration"),
     ]
     cards = "\n".join(
-        "<article class='tile'><span>" + esc(label) + "</span><strong>"
-        + f"{value:,}" + "</strong><small>" + esc(note) + "</small></article>"
+        "<article class='tile'><span>"
+        + esc(label)
+        + "</span><strong>"
+        + f"{value:,}"
+        + "</strong><small>"
+        + esc(note)
+        + "</small></article>"
         for label, value, note in tiles
     )
     table = "\n".join(
-        "<tr><th scope='row'>" + esc(label) + "</th><td>"
-        + f"{m[key]:,}" + "</td><td>"
+        "<tr><th scope='row'>"
+        + esc(label)
+        + "</th><td>"
+        + f"{m[key]:,}"
+        + "</td><td>"
         + ("No baseline" if changes is None else f"{changes[key]:+d}")
-        + "</td></tr>" for key, label in METRICS.items()
+        + "</td></tr>"
+        for key, label in METRICS.items()
     )
     actions = "\n".join(
-        "<li><strong>" + esc(item["gate"]) + "</strong>: " + esc(item["finding"])
-        + "<small>" + esc(item["evidence_needed"]) + "</small></li>"
+        "<li><strong>"
+        + esc(item["gate"])
+        + "</strong>: "
+        + esc(item["finding"])
+        + "<small>"
+        + esc(item["evidence_needed"])
+        + "</small></li>"
         for item in _actions(state)
     )
     return f"""<!doctype html><html lang="en"><head>
@@ -462,8 +532,8 @@ footer{{border-top:1px solid var(--line);color:var(--muted);margin-top:2rem;padd
 </style></head><body>
 <header><div class="brand">SCC NEXUS LIMITED · SEARCH / CORROBORATE / COMMUNICATE</div>
 <h1>UK Environmental Intelligence — Weekly Evidence Review</h1>
-<p>Week {esc(week)} · Source evidence as of {esc(state['evidence_as_of'])} ·
-{esc('STALE' if state['stale'] else 'within 7-day freshness threshold')}</p></header>
+<p>Week {esc(week)} · Source evidence as of {esc(state["evidence_as_of"])} ·
+{esc("STALE" if state["stale"] else "within 7-day freshness threshold")}</p></header>
 <main><section><h2>Executive position</h2>
 <p class="hold"><strong>Scientific release: HOLD.</strong> Source discovery,
 URL reachability and software checks do not establish scientific quality,
@@ -502,9 +572,13 @@ def build_weekly(
     )
     output.mkdir(parents=True, exist_ok=True)
     snapshot = {
-        "schema": SCHEMA, "week": week, "metrics": state["metrics"],
-        "evidence_as_of": state["evidence_as_of"], "source_digests": state["digests"],
-        "scientific_release": "HOLD", "national_completeness": "NOT_VERIFIED",
+        "schema": SCHEMA,
+        "week": week,
+        "metrics": state["metrics"],
+        "evidence_as_of": state["evidence_as_of"],
+        "source_digests": state["digests"],
+        "scientific_release": "HOLD",
+        "national_completeness": "NOT_VERIFIED",
     }
     snap_bytes = (json.dumps(snapshot, sort_keys=True, indent=2) + "\n").encode()
     (output / "snapshot.json").write_bytes(snap_bytes)
@@ -514,46 +588,65 @@ def build_weekly(
     (output / "reviewer-report.md").write_text(
         _markdown(state, week, prior, changes, reviewer=True), encoding="utf-8"
     )
-    (output / "dashboard.html").write_text(
-        _dashboard(state, week, changes), encoding="utf-8"
-    )
+    (output / "dashboard.html").write_text(_dashboard(state, week, changes), encoding="utf-8")
     write_csv(
         output / "metrics.csv",
         ("metric_id", "measure", "value", "previous_week_change", "evidence_as_of"),
-        [{"metric_id": key, "measure": label, "value": state["metrics"][key],
-          "previous_week_change": "" if changes is None else changes[key],
-          "evidence_as_of": state["evidence_as_of"]} for key, label in METRICS.items()],
+        [
+            {
+                "metric_id": key,
+                "measure": label,
+                "value": state["metrics"][key],
+                "previous_week_change": "" if changes is None else changes[key],
+                "evidence_as_of": state["evidence_as_of"],
+            }
+            for key, label in METRICS.items()
+        ],
     )
     coverage = state["coverage"]
-    gaps = (
-        [{"priority": "P0", "kind": "direct_adapter", "identifier": item, "status": "MISSING"}
-         for item in coverage["required_direct_connector_gaps"]]
-        + [{"priority": "P0", "kind": "station_inventory", "identifier": item,
-            "status": "NOT_ENUMERATED"} for item in coverage["network_enumeration_gaps"]]
-    )
+    gaps = [
+        {"priority": "P0", "kind": "direct_adapter", "identifier": item, "status": "MISSING"}
+        for item in coverage["required_direct_connector_gaps"]
+    ] + [
+        {
+            "priority": "P0",
+            "kind": "station_inventory",
+            "identifier": item,
+            "status": "NOT_ENUMERATED",
+        }
+        for item in coverage["network_enumeration_gaps"]
+    ]
     write_csv(output / "gap-register.csv", ("priority", "kind", "identifier", "status"), gaps)
     write_csv(
         output / "action-register.csv",
-        ("priority", "gate", "finding", "evidence_needed"), _actions(state)
+        ("priority", "gate", "finding", "evidence_needed"),
+        _actions(state),
     )
     receipt = {
-        "schema": SCHEMA, "report_week": week, "generated_at_utc": timestamp.isoformat(),
+        "schema": SCHEMA,
+        "report_week": week,
+        "generated_at_utc": timestamp.isoformat(),
         "evidence_as_of": state["evidence_as_of"],
         "evidence_age_days": state["age_days"],
         "freshness_status": "STALE" if state["stale"] else "WITHIN_SEVEN_DAYS",
         "comparison_week": prior["week"] if changes is not None and prior else None,
-        "comparisons_supported": changes is not None, "changes": changes,
-        "metrics": state["metrics"], "source_sha256": state["digests"],
+        "comparisons_supported": changes is not None,
+        "changes": changes,
+        "metrics": state["metrics"],
+        "source_sha256": state["digests"],
         "snapshot_sha256": sha(snap_bytes),
-        "technical_reporting_gate": "PASS", "scientific_release": "HOLD",
+        "technical_reporting_gate": "PASS",
+        "scientific_release": "HOLD",
         "national_completeness": "NOT_VERIFIED",
         "scientific_publication_approved": False,
         "external_review_completed": False,
         "sibling_repositories_modified": False,
-        "vvip": {"validation": "INDEPENDENT_TEST_REQUIRED",
-                 "verification": "INDEPENDENT_REACQUISITION_REQUIRED",
-                 "integrity": "CHECKSUM_RECONCILED",
-                 "provenance": "INPUT_DIGESTS_ATTACHED"},
+        "vvip": {
+            "validation": "INDEPENDENT_TEST_REQUIRED",
+            "verification": "INDEPENDENT_REACQUISITION_REQUIRED",
+            "integrity": "CHECKSUM_RECONCILED",
+            "provenance": "INPUT_DIGESTS_ATTACHED",
+        },
     }
     (output / "receipt.json").write_text(
         json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -564,9 +657,18 @@ def build_weekly(
         if p.is_file() and p.name != "bundle-manifest.json"
     }
     (output / "bundle-manifest.json").write_text(
-        json.dumps({"schema": "scc-weekly-artifact-manifest/1", "week": week,
-                    "file_sha256": hashes, "human_approval_present": False},
-                   indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(
+            {
+                "schema": "scc-weekly-artifact-manifest/1",
+                "week": week,
+                "file_sha256": hashes,
+                "human_approval_present": False,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
     )
     return receipt
 
