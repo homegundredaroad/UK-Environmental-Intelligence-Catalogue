@@ -16,7 +16,7 @@ Presence of a URL does **not** establish that a year's observations are complete
 ratified, consistently comparable or available for every site/pollutant.
 
 The inventory accepts only official exact-path Atom URLs on
-\`https://uk-air.defra.gov.uk\` and refuses query strings, cross-site URLs and
+`https://uk-air.defra.gov.uk` and refuses query strings, cross-site URLs and
 non-HTTPS paths. It preserves the *original* provider index HTML and SHA-256;
 returns a year-by-category matrix and explicit missing-index-year lists.
 
@@ -24,18 +24,18 @@ returns a year-by-category matrix and explicit missing-index-year lists.
 
 Offline using a preserved original HTML file:
 
-\`\`\`bash
+```bash
 python -m ukei.uk_air_atom \
   --input-html ukair-atom-index-original.html \
   --year 2026 --output output/atom-historical-index
-\`\`\`
+```
 
 One bounded live request to Defra's published HTML index:
 
-\`\`\`bash
+```bash
 python -m ukei.uk_air_atom --live --year 2026 \
   --timeout 10 --output output/atom-historical-index
-\`\`\`
+```
 
 The live request uses strict public HTTPS DNS preflight, blocks proxies and
 redirects, and limits the response to 2,000,000 bytes. DNS preflight is
@@ -45,13 +45,13 @@ redirect, this first implementation **fails closed** and the route is reviewed
 separately; never switch off transport guards to make a run appear green.
 
 Outputs:
-- \`atom-index-original.html\` — exact original byte snapshot, private evidence.
-- \`atom-index-manifest.csv\` — one machine-parsable row for each advertised feed.
-- \`atom-index-receipt.json\` — raw and manifest hashes, observed counts,
+- `atom-index-original.html` — exact original byte snapshot, source evidence.
+- `atom-index-manifest.csv` — one machine-parsable row for each advertised feed.
+- `atom-index-receipt.json` — raw and manifest hashes, observed counts,
   missing-year ledger, duplicate and rejection counts, mode and timestamp.
 
 The monthly/push/manual GitHub workflow is
-\`.github/workflows/ukair-atom-index.yml\`. It retains a private GitHub
+`.github/workflows/ukair-atom-index.yml`. It retains a GitHub
 Actions artifact; **it does not commit source HTML or new datasets**.
 
 ## Scientific next stage
