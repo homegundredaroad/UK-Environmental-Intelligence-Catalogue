@@ -153,7 +153,7 @@ def _fetch_index(timeout_seconds: float) -> tuple[bytes, dict[str, str | int]]:
         raise DiscoveryError("UK-AIR source index retrieval failed or was blocked") from exc
     if len(body) > MAX_INDEX_BYTES:
         raise DiscoveryError("UK-AIR source index exceeded byte budget")
-    if receipt["http_status"] != 200 or "html" not in receipt["content_type"]:
+    if receipt["http_status"] != 200 or "html" not in str(receipt["content_type"]):
         raise DiscoveryError("UK-AIR source index response was not an HTTP 200 HTML page")
     return body, receipt
 
