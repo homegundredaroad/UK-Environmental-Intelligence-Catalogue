@@ -149,7 +149,11 @@ def gather(root: Path, now: datetime) -> dict[str, Any]:
         raise EvidenceError("handoff and current records disagree")
     comparisons = (
         (metrics["datasets"], len(manifest), "dataset count"),
-        (metrics["reachable"], sum(r.get("reachable") == "yes" for r in manifest), "reachable count"),
+        (
+            metrics["reachable"],
+            sum(r.get("reachable") == "yes" for r in manifest),
+            "reachable count",
+        ),
         (metrics["eligible"], sum(r.get("sccaq_status") == "CANDIDATE_FOR_TEST"
                                  for r in manifest), "eligible count"),
         (metrics["policy"], sum(r.get("probe_outcome") == "blocked_by_policy"
@@ -404,7 +408,8 @@ def _markdown(
 
 def _dashboard(state: dict[str, Any], week: str, changes: dict[str, int] | None) -> str:
     m = state["metrics"]
-    esc = lambda value: html.escape(str(value), quote=True)
+    def esc(value: object) -> str:
+        return html.escape(str(value), quote=True)
     tiles = [
         ("Catalogued datasets", m["datasets"], "Discovery only"),
         ("Reachable endpoints", m["reachable"], "Not schema-verified"),
@@ -434,14 +439,18 @@ def _dashboard(state: dict[str, Any], week: str, changes: dict[str, int] | None)
 <title>SCC Nexus | Environmental Weekly {esc(week)}</title>
 <style>
 :root{{--navy:#172846;--gold:#b69a5c;--line:#dce3e9;--muted:#5c6878}}
-*{{box-sizing:border-box}}body{{margin:0;background:#fff;color:#1e2f42;font:16px/1.5 system-ui,sans-serif}}
+*{{box-sizing:border-box}}
+body{{margin:0;background:#fff;color:#1e2f42;font:16px/1.5 system-ui,sans-serif}}
 header{{background:var(--navy);color:white;padding:2rem max(1.25rem,calc((100vw - 1060px)/2))}}
 .brand{{letter-spacing:.12em;color:#ecd5a4;font-weight:800;font-size:.85rem}}
 h1{{font-size:clamp(1.8rem,4vw,2.7rem);max-width:23ch;line-height:1.2}}
-header p{{color:#dfe7f0;max-width:70ch}}main{{max-width:1060px;margin:auto;padding:1rem 1.2rem 4rem}}
+header p{{color:#dfe7f0;max-width:70ch}}
+main{{max-width:1060px;margin:auto;padding:1rem 1.2rem 4rem}}
 .tiles{{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem}}
-.tile{{background:#f5f6f8;border:1px solid var(--line);border-radius:12px;padding:1rem;display:flex;flex-direction:column}}
-.tile strong{{font-size:2.3rem;color:var(--navy)}}small{{color:var(--muted)}}.tile small{{display:block}}
+ .tile{{background:#f5f6f8;border:1px solid var(--line);border-radius:12px;
+ padding:1rem;display:flex;flex-direction:column}}
+ .tile strong{{font-size:2.3rem;color:var(--navy)}}
+small{{color:var(--muted)}}.tile small{{display:block}}
 h2{{margin-top:2.2rem;border-bottom:2px solid var(--gold);padding-bottom:.3rem}}
 .hold{{background:#fbf6ea;border-left:5px solid var(--gold);padding:1rem}}
 .table-scroll{{overflow-x:auto}}table{{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}}
@@ -461,7 +470,8 @@ URL reachability and software checks do not establish scientific quality,
 national coverage, exposure or health outcomes.</p>
 <div class="tiles">{cards}</div></section>
 <section><h2>All tracked metrics</h2>
-<p>Differences require an earlier distinct reporting week; a missing baseline is not zero change.</p>
+<p>Differences require an earlier distinct reporting week;
+a missing baseline is not zero change.</p>
 <div class="table-scroll"><table><thead><tr><th>Metric</th><th>Latest</th><th>Weekly difference</th>
 </tr></thead><tbody>{table}</tbody></table></div></section>
 <section><h2>Priority reviewer actions</h2><ol>{actions}</ol></section>
