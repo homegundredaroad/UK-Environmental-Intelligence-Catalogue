@@ -262,7 +262,7 @@ def test_invalid_metric_count_is_rejected(bad: object) -> None:
 
 @pytest.mark.parametrize("bad", [None, 12, "", "not-a-timestamp", "2026-11-05T16:00:00"])
 def test_missing_or_naive_timestamps_fail_closed(bad: object) -> None:
-    with pytest.raises(EvidenceError, match="timestamp|date"):
+    with pytest.raises(EvidenceError, match=r"timestamp|date"):
         checked_at(bad)
 
 
