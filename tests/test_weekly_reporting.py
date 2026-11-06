@@ -162,7 +162,7 @@ def test_blocked_source_cannot_be_promoted(tmp_path: Path) -> None:
     coverage = json.loads((directory / "authoritative-coverage-receipt.json").read_text())
     coverage["manifest_sha256"] = sha(manifest_path.read_bytes())
     write_json(directory / "authoritative-coverage-receipt.json", coverage)
-    with pytest.raises(EvidenceError, match="eligible count|misclassified"):
+    with pytest.raises(EvidenceError, match=r"eligible count|misclassified"):
         build_weekly(tmp_path, tmp_path / "output", now=NOW)
 
 
