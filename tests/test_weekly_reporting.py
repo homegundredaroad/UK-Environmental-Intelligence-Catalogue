@@ -371,7 +371,5 @@ def test_unknown_prior_snapshot_format_is_ignored(tmp_path: Path) -> None:
     fixture_repo(tmp_path)
     path = tmp_path / "archive/2026-W43/snapshot.json"
     write_json(path, {"schema": "older-format", "week": "2026-W43"})
-    receipt = build_weekly(
-        tmp_path, tmp_path / "output", now=NOW, archive=tmp_path / "archive"
-    )
+    receipt = build_weekly(tmp_path, tmp_path / "output", now=NOW, archive=tmp_path / "archive")
     assert receipt["comparisons_supported"] is False
