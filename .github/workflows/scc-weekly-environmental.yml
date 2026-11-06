@@ -1,0 +1,119 @@
+name: SCC Nexus Weekly Environmental Intelligence
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 0"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/scc-weekly-environmental.yml"
+      - "src/ukei/weekly_reporting.py"
+      - "tests/test_weekly_reporting.py"
+      - "docs/scc-weekly-environmental-reporting.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scc-weekly-environmental-reporting
+  cancel-in-progress: false
+
+jobs:
+  report:
+    name: Build independently inspectable SCC/VVIP weekly report
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+
+    steps:
+      - name: Check out latest canonical catalogue
+        uses: actions/checkout@v6
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install reporting package
+        run: python -m pip install .
+
+      - name: Build executive, scientific and technical evidence pack
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m ukei.weekly_reporting \
+            --root . \
+            --archive reports/weekly/archive \
+            --output "${RUNNER_TEMP}/scc-weekly" \
+            > "${RUNNER_TEMP}/scc-weekly-build-receipt.json"
+
+      - name: Independently reconcile output checksums and governance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path(os.environ["RUNNER_TEMP"]) / "scc-weekly"
+          receipt = json.loads((root / "receipt.json").read_text())
+          manifest = json.loads((root / "bundle-manifest.json").read_text())
+          assert receipt["schema"] == "scc-environmental-intelligence-weekly-v1"
+          assert receipt["technical_reporting_gate"] == "PASS"
+          assert receipt["scientific_release"] == "HOLD"
+          assert receipt["scientific_publication_approved"] is False
+          assert receipt["national_completeness"] == "NOT_VERIFIED"
+          assert receipt["sibling_repositories_modified"] is False
+          hashes = manifest["file_sha256"]
+          for name, expected in hashes.items():
+              actual = hashlib.sha256((root / name).read_bytes()).hexdigest()
+              if actual != expected:
+                  raise SystemExit(f"VVIP artifact checksum mismatch: {name}")
+          if len(hashes) < 8:
+              raise SystemExit("SCC weekly evidence bundle missing required outputs")
+          print(f"PASS: {len(hashes)} verified outputs, scientific release HOLD")
+          PY
+
+      - name: Retain complete dated evidence pack
+        uses: actions/upload-artifact@v7
+        with:
+          name: scc-environmental-weekly-evidence
+          path: |
+            ${{ runner.temp }}/scc-weekly/
+            ${{ runner.temp }}/scc-weekly-build-receipt.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish current and permanent weekly archive (status-only evidence)
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="${RUNNER_TEMP}/scc-weekly"
+          week="$(python -c 'import json,sys;print(json.load(open(sys.argv[1]))["report_week"])' "${src}/receipt.json")"
+          case "${week}" in
+            ????-W??) ;;
+            *) echo "Unexpected weekly archive key" >&2; exit 1 ;;
+          esac
+          current="reports/weekly/current"
+          archive="reports/weekly/archive/${week}"
+          mkdir -p "${current}" "${archive}"
+          for name in public-summary.md reviewer-report.md dashboard.html \
+                      snapshot.json receipt.json bundle-manifest.json metrics.csv \
+                      gap-register.csv action-register.csv; do
+            cp "${src}/${name}" "${current}/${name}"
+            cp "${src}/${name}" "${archive}/${name}"
+          done
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f "${current}" "${archive}"
+          if git diff --cached --quiet; then
+            echo "No weekly evidence snapshot changes."
+            exit 0
+          fi
+          git commit -m "chore: publish SCC environmental weekly ${week} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
