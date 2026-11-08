@@ -6,7 +6,7 @@
 - **26** source endpoints were blocked by network policy; they have not been established as missing or permanently inaccessible.
 - **15** official direct adapters and **17** monitoring-network enumerations remain missing.
 - **Scientific decision: HOLD.** No claim of national completeness, scientific admissibility, exposure effects or historical data accuracy.
-- Evidence age: **0.9 days** — within 7-day reporting threshold.
+- Evidence age: **2.9 days** — within 7-day reporting threshold.
 
 ## Harvestability and coverage
 | Measure | Latest count | Change from prior distinct week |

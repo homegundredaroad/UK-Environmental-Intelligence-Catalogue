@@ -2,11 +2,11 @@
   "changes": null,
   "comparison_week": null,
   "comparisons_supported": false,
-  "evidence_age_days": 0.95,
+  "evidence_age_days": 2.87,
   "evidence_as_of": "2026-11-05T16:40:45+00:00",
   "external_review_completed": false,
   "freshness_status": "WITHIN_SEVEN_DAYS",
-  "generated_at_utc": "2026-11-06T15:30:13.790473+00:00",
+  "generated_at_utc": "2026-11-08T13:33:18.390530+00:00",
   "metrics": {
     "adapters_missing": 15,
     "air_context": 284,
