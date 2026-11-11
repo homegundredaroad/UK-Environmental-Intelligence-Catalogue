@@ -83,3 +83,7 @@ itself.
 The matrix records source-system representation and connector status. The receipt records the
 outstanding direct-connector and network-enumeration gaps and always preserves the SCC/VVIP scientific
 claim boundary.
+
+## SCC Air Quality governed handoff
+
+The SCC Air Quality handoff now carries a compressed, checksum-protected copy of this authoritative source/network registry alongside the focused discovery catalogue. The handoff remains discovery/governance intelligence only: it does not confer scientific admissibility or authorise production changes. SCC Air Quality must independently reacquire original-provider evidence and prove each connector/network inventory in its test and research repositories.

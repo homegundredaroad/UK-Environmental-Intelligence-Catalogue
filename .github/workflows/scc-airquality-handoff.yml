@@ -97,6 +97,7 @@ jobs:
           args=(
             --catalogue handoff-input/focused-catalogue.json
             --run-receipt handoff-input/run-receipt.json
+            --authoritative-registry src/ukei/data/air_quality_authoritative_sources.v1.json
             --output handoff/sccairquality
             --upstream-run-id "${{ steps.run.outputs.run_id }}"
             --upstream-artifact-id "${{ steps.run.outputs.artifact_id }}"
@@ -121,10 +122,19 @@ jobs:
           assert receipt['governance']['scientific_admissibility_conferred'] is False
           assert receipt['security']['raw_payload_published'] is False
           raw = gzip.decompress(Path('handoff/sccairquality/focused-catalogue.json.gz').read_bytes()).decode('utf-8')
+          registry_raw = gzip.decompress(Path('handoff/sccairquality/authoritative-air-quality-registry.json.gz').read_bytes()).decode('utf-8')
+          registry = json.loads(registry_raw)
+          registry_meta = receipt.get('authoritative_registry') or {}
+          assert len(registry.get('source_systems', [])) == registry_meta.get('source_system_count')
+          assert len(registry.get('national_networks', [])) == registry_meta.get('national_network_count')
           bad = re.compile(r'(?i)(password|passwd|pwd|token|access_token|apikey|api_key|client_secret|authorization)=((?!REDACTED)[^&"\\s]+)')
-          if bad.search(raw):
+          if bad.search(raw) or bad.search(registry_raw):
               raise SystemExit('Sensitive URL value survived sanitisation')
-          print(f"PASS: sanitised handoff; {receipt['security']['sensitive_url_values_redacted']} sensitive URL values redacted.")
+          print(
+              f"PASS: sanitised handoff; {receipt['security']['sensitive_url_values_redacted']} sensitive URL values redacted; "
+              f"{registry_meta.get('source_system_count')} authoritative source systems and "
+              f"{registry_meta.get('national_network_count')} national/specialist networks included."
+          )
           PY
 
       - name: Commit handoff snapshot
@@ -153,6 +163,9 @@ jobs:
               fh.write('# SCC Air Quality handoff\n\n')
               fh.write(f"Upstream focused run: **{receipt['upstream_run_id']}**\n\n")
               fh.write(f"Catalogue records: **{receipt['catalogue']['record_count']}**\n\n")
+              registry = receipt.get('authoritative_registry') or {}
+              fh.write(f"Authoritative source systems: **{registry.get('source_system_count', 0)}**\n\n")
+              fh.write(f"National/specialist networks: **{registry.get('national_network_count', 0)}**\n\n")
               fh.write(f"Sensitive URL values redacted: **{receipt['security']['sensitive_url_values_redacted']}**\n\n")
               fh.write('Scientific admissibility conferred: **no**\n\n')
               fh.write('Production change authorised: **no**\n')
