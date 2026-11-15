@@ -1,4 +1,5 @@
 priority,gate,finding,evidence_needed
+P0,Evidence freshness,Last harvestability receipt is older than seven days,New source acquisition and reconciled checksum receipt
 P0,Official data connectors,15 required direct adapters absent,"Provider-native endpoint, bounded test and exact schema receipt"
 P0,Monitoring network coverage,17 inventories lack reconciled stations,Native active/closed station IDs and registry snapshots
 P0,Transport security,26 blocked URLs; not confirmed missing,Source-verified redirect origins and secure allowlist review
