@@ -225,9 +225,7 @@ def previous_week(archive: Path | None, current: str) -> dict[str, Any] | None:
     return None
 
 
-def source_continuity(
-    current: dict[str, str], previous: dict[str, Any] | None
-) -> str:
+def source_continuity(current: dict[str, str], previous: dict[str, Any] | None) -> str:
     """Compare actual input receipts, never report repeated rendering as acquisition."""
     if previous is None:
         return "NO_PRIOR_BASELINE"
