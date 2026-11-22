@@ -4,6 +4,8 @@ on:
   workflow_run:
     workflows: ["Publish SCC Air Quality Handoff"]
     types: [completed]
+  schedule:
+    - cron: "23 4 * * 6"
   workflow_dispatch:
     inputs:
       live_probe:
