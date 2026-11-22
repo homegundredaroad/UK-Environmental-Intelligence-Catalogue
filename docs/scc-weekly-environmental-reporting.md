@@ -43,6 +43,17 @@ Re-running the same week does not count as an improvement. The reporting date
 is never substituted for the source-qualification timestamp. A receipt older
 than seven days is labelled STALE and demands a separate human review.
 
+**Two different evidence clocks are mandatory.** The weekly report records the
+latest `harvestability-receipt.generated_at_utc` (the date of a bounded
+endpoint qualification) separately from
+`handoff-receipt.generated_at_utc` (the date the upstream discovery
+catalogue handoff was exported). The latter is **not** an original-provider
+observation timestamp and must never be silently reset when old URLs are
+re-probed. Both ages and stale states appear in the machine-readable
+receipt, executive summary and reviewer appendix. A recent qualification
+with an old discovery handoff still demands fresh original-provider
+discovery and metadata corroboration.
+
 A second, explicit **source-continuity** calculation compares the SHA-256
 digests of every committed input against the previous distinct week's
 snapshot. It distinguishes no baseline, unchanged input, and source changes

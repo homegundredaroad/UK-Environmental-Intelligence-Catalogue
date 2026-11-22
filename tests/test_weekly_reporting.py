@@ -92,7 +92,12 @@ def fixture_repo(root: Path) -> None:
         },
     )
     write_json(
-        base / "handoff-receipt.json", {"catalogue": {"record_count": 3}, "governance": review}
+        base / "handoff-receipt.json",
+        {
+            "catalogue": {"record_count": 3},
+            "generated_at_utc": "2026-09-26T12:37:40+00:00",
+            "governance": review,
+        },
     )
     write_json(
         directory / "harvestability-receipt.json",
@@ -143,6 +148,8 @@ def test_weekly_suite_has_all_inspectable_outputs_and_holds_release(tmp_path: Pa
     assert receipt["comparisons_supported"] is False
     assert receipt["source_continuity"] == "NO_PRIOR_BASELINE"
     assert receipt["freshness_review_required"] is False
+    assert receipt["discovery_handoff_stale"] is True
+    assert receipt["discovery_handoff_age_days"] > 40
     assert receipt["metrics"]["datasets"] == 2
     assert receipt["metrics"]["eligible"] == 1
     assert receipt["metrics"]["policy"] == 1
@@ -413,3 +420,38 @@ def test_weekly_report_exposes_identical_upstream_receipts(
     dashboard = (tmp_path / "second" / "dashboard.html").read_text()
     assert "No new underlying source snapshot" in dashboard
     assert second["scientific_release"] == "HOLD"
+
+
+def test_fresh_probe_does_not_reset_original_discovery_handoff_age(
+    tmp_path: Path,
+) -> None:
+    fixture_repo(tmp_path)
+    receipt_file = tmp_path / "handoff/sccairquality/harvestability/harvestability-receipt.json"
+    receipt = json.loads(receipt_file.read_text())
+    receipt["generated_at_utc"] = "2026-11-22T13:30:00+00:00"
+    write_json(receipt_file, receipt)
+    this_run = datetime(2026, 11, 22, 14, tzinfo=UTC)
+    output = build_weekly(tmp_path, tmp_path / "latest", now=this_run)
+    assert output["evidence_age_days"] < 1
+    assert output["freshness_status"] == "WITHIN_SEVEN_DAYS"
+    assert output["discovery_handoff_age_days"] > 50
+    assert output["discovery_handoff_stale"] is True
+    assert output["discovery_handoff_as_of"].startswith("2026-09-26")
+    assert (
+        "Original catalogue handoff exported"
+        in (tmp_path / "latest" / "public-summary.md").read_text()
+    )
+    assert (
+        "Original discovery handoff age" in (tmp_path / "latest" / "reviewer-report.md").read_text()
+    )
+    assert output["scientific_release"] == "HOLD"
+
+
+def test_future_dated_original_handoff_fails_closed(tmp_path: Path) -> None:
+    fixture_repo(tmp_path)
+    path = tmp_path / "handoff/sccairquality/handoff-receipt.json"
+    receipt = json.loads(path.read_text())
+    receipt["generated_at_utc"] = "2026-12-01T13:30:00+00:00"
+    write_json(path, receipt)
+    with pytest.raises(EvidenceError, match="future-dated"):
+        build_weekly(tmp_path, tmp_path / "invalid", now=NOW)

@@ -196,8 +196,10 @@ def gather(root: Path, now: datetime) -> dict[str, Any]:
         ):
             raise EvidenceError("a blocked source was misclassified or promoted")
     stamp = checked_at(harvest.get("generated_at_utc"))
-    if stamp > now:
+    discovery_stamp = checked_at(handoff.get("generated_at_utc"))
+    if stamp > now or discovery_stamp > now:
         raise EvidenceError("future-dated evidence")
+    discovery_age = round((now - discovery_stamp).total_seconds() / 86400, 2)
     return {
         "metrics": metrics,
         "digests": digests,
@@ -208,6 +210,9 @@ def gather(root: Path, now: datetime) -> dict[str, Any]:
         "matrix": matrix,
         "policy": policy,
         "age_days": round((now - stamp).total_seconds() / 86400, 2),
+        "discovery_handoff_as_of": discovery_stamp.isoformat(),
+        "discovery_handoff_age_days": discovery_age,
+        "discovery_handoff_stale": discovery_age > 7,
         "evidence_as_of": stamp.isoformat(),
         "stale": (now - stamp).days >= 7,
     }
@@ -313,6 +318,18 @@ def _actions(state: dict[str, Any]) -> list[dict[str, str]]:
             "evidence_needed": "Named reviewer assessment, limitations and recorded sign-off",
         },
     ]
+    if state["discovery_handoff_stale"]:
+        actions.insert(
+            0,
+            {
+                "priority": "P0",
+                "gate": "Original discovery handoff age",
+                "finding": "The upstream catalogue handoff is older than seven days",
+                "evidence_needed": (
+                    "New governed first-party discovery and original metadata version receipts"
+                ),
+            },
+        )
     if state["source_continuity"] == "UNCHANGED_FROM_PRIOR_WEEK":
         actions.insert(
             0,
@@ -364,6 +381,9 @@ def _markdown(
         f"- Evidence age: **{state['age_days']:.1f} days** — "
         f"{'STALE' if state['stale'] else 'within 7-day reporting threshold'}.",
         f"- **Upstream continuity:** {continuity_note(state['source_continuity'])}",
+        f"- **Original catalogue handoff exported:** {state['discovery_handoff_as_of']} "
+        f"({state['discovery_handoff_age_days']:.1f} days ago). This is an export receipt "
+        "date, not an original-provider observation timestamp.",
         "",
         "## Harvestability and coverage",
         "| Measure | Latest count | Change from prior distinct week |",
@@ -405,6 +425,8 @@ def _markdown(
             "These are from the original recorded discovery run, not fresh weekly observations.",
             "A weekly report run reads previously committed files only. It does not prove "
             "any original-provider API or environmental station has been updated this week.",
+            f"Original discovery handoff exported: {state['discovery_handoff_as_of']} "
+            "(distinct from the most recent endpoint qualification receipt).",
             f"Previous comparable week: "
             f"{previous['week'] if previous and changes is not None else 'none available'}.",
             "",
@@ -585,6 +607,10 @@ footer{{border-top:1px solid var(--line);color:var(--muted);margin-top:2rem;padd
 URL reachability and software checks do not establish scientific quality,
 national coverage, exposure or health outcomes.</p>
 <p><strong>Source continuity:</strong> {esc(continuity_note(state["source_continuity"]))}</p>
+<p><strong>Original discovery handoff export:</strong>
+{esc(state["discovery_handoff_as_of"])} ·
+{state["discovery_handoff_age_days"]:.1f} days old.
+This is not an observation timestamp.</p>
 <div class="tiles">{cards}</div></section>
 <section><h2>All tracked metrics</h2>
 <p>Differences require an earlier distinct reporting week;
@@ -626,6 +652,7 @@ def build_weekly(
         "evidence_as_of": state["evidence_as_of"],
         "source_digests": state["digests"],
         "source_continuity": state["source_continuity"],
+        "discovery_handoff_as_of": state["discovery_handoff_as_of"],
         "scientific_release": "HOLD",
         "national_completeness": "NOT_VERIFIED",
     }
@@ -677,6 +704,9 @@ def build_weekly(
         "generated_at_utc": timestamp.isoformat(),
         "evidence_as_of": state["evidence_as_of"],
         "evidence_age_days": state["age_days"],
+        "discovery_handoff_as_of": state["discovery_handoff_as_of"],
+        "discovery_handoff_age_days": state["discovery_handoff_age_days"],
+        "discovery_handoff_stale": state["discovery_handoff_stale"],
         "freshness_status": "STALE" if state["stale"] else "WITHIN_SEVEN_DAYS",
         "source_continuity": state["source_continuity"],
         "freshness_review_required": state["stale"],
