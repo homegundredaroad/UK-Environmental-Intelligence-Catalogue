@@ -97,7 +97,7 @@ def fixture_repo(root: Path) -> None:
             "catalogue": {"record_count": 3},
             "generated_at_utc": "2026-09-26T12:37:40+00:00",
             "governance": review,
-        }
+        },
     )
     write_json(
         directory / "harvestability-receipt.json",
@@ -426,9 +426,7 @@ def test_fresh_probe_does_not_reset_original_discovery_handoff_age(
     tmp_path: Path,
 ) -> None:
     fixture_repo(tmp_path)
-    receipt_file = (
-        tmp_path / "handoff/sccairquality/harvestability/harvestability-receipt.json"
-    )
+    receipt_file = tmp_path / "handoff/sccairquality/harvestability/harvestability-receipt.json"
     receipt = json.loads(receipt_file.read_text())
     receipt["generated_at_utc"] = "2026-11-22T13:30:00+00:00"
     write_json(receipt_file, receipt)
@@ -439,12 +437,13 @@ def test_fresh_probe_does_not_reset_original_discovery_handoff_age(
     assert output["discovery_handoff_age_days"] > 50
     assert output["discovery_handoff_stale"] is True
     assert output["discovery_handoff_as_of"].startswith("2026-09-26")
-    assert "Original catalogue handoff exported" in (
-        tmp_path / "latest" / "public-summary.md"
-    ).read_text()
-    assert "Original discovery handoff age" in (
-        tmp_path / "latest" / "reviewer-report.md"
-    ).read_text()
+    assert (
+        "Original catalogue handoff exported"
+        in (tmp_path / "latest" / "public-summary.md").read_text()
+    )
+    assert (
+        "Original discovery handoff age" in (tmp_path / "latest" / "reviewer-report.md").read_text()
+    )
     assert output["scientific_release"] == "HOLD"
 
 
