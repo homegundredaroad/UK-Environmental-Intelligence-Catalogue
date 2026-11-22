@@ -1,14 +1,14 @@
 metric_id,measure,value,previous_week_change,evidence_as_of
-records,Discovery records,587,0,2026-11-05T16:40:45+00:00
-datasets,Distinct candidate datasets,554,0,2026-11-05T16:40:45+00:00
-relevant,Pollutant-relevant datasets,377,0,2026-11-05T16:40:45+00:00
-air_context,Explicit air-context datasets,284,0,2026-11-05T16:40:45+00:00
-machine,Machine-readable candidates,321,0,2026-11-05T16:40:45+00:00
-probed,Endpoint probes,117,0,2026-11-05T16:40:45+00:00
-reachable,Reachable endpoints,93,0,2026-11-05T16:40:45+00:00
-policy,Safety-policy blocks,26,0,2026-11-05T16:40:45+00:00
-eligible,Candidates for independent tests,1,0,2026-11-05T16:40:45+00:00
-adapters_missing,Missing direct provider adapters,15,0,2026-11-05T16:40:45+00:00
-networks_missing,Unreconciled monitoring networks,17,0,2026-11-05T16:40:45+00:00
-source_systems,Registered source systems,16,0,2026-11-05T16:40:45+00:00
-cross_media_sources,Cross-media source signals,403,0,2026-11-05T16:40:45+00:00
+records,Discovery records,587,0,2026-11-22T14:02:03+00:00
+datasets,Distinct candidate datasets,554,0,2026-11-22T14:02:03+00:00
+relevant,Pollutant-relevant datasets,377,0,2026-11-22T14:02:03+00:00
+air_context,Explicit air-context datasets,284,0,2026-11-22T14:02:03+00:00
+machine,Machine-readable candidates,321,0,2026-11-22T14:02:03+00:00
+probed,Endpoint probes,117,0,2026-11-22T14:02:03+00:00
+reachable,Reachable endpoints,92,'-1,2026-11-22T14:02:03+00:00
+policy,Safety-policy blocks,25,'-1,2026-11-22T14:02:03+00:00
+eligible,Candidates for independent tests,2,1,2026-11-22T14:02:03+00:00
+adapters_missing,Missing direct provider adapters,15,0,2026-11-22T14:02:03+00:00
+networks_missing,Unreconciled monitoring networks,17,0,2026-11-22T14:02:03+00:00
+source_systems,Registered source systems,16,0,2026-11-22T14:02:03+00:00
+cross_media_sources,Cross-media source signals,403,0,2026-11-22T14:02:03+00:00
