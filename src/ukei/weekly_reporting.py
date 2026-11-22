@@ -225,6 +225,37 @@ def previous_week(archive: Path | None, current: str) -> dict[str, Any] | None:
     return None
 
 
+def source_continuity(current: dict[str, str], previous: dict[str, Any] | None) -> str:
+    """Compare actual input receipts, never report repeated rendering as acquisition."""
+    if previous is None:
+        return "NO_PRIOR_BASELINE"
+    older = previous.get("source_digests")
+    if (
+        not isinstance(older, dict)
+        or set(older) != set(current)
+        or any(not isinstance(value, str) for value in older.values())
+    ):
+        return "NO_COMPARABLE_HASH_BASELINE"
+    if older == current:
+        return "UNCHANGED_FROM_PRIOR_WEEK"
+    return "CHANGED_REQUIRES_SOURCE_REVIEW"
+
+
+def continuity_note(status: str) -> str:
+    """Human-readable explanation of the upstream receipt comparison."""
+    if status == "UNCHANGED_FROM_PRIOR_WEEK":
+        return (
+            "All input receipt hashes match the previous week. No new underlying "
+            "source snapshot is demonstrated by this weekly report."
+        )
+    if status == "CHANGED_REQUIRES_SOURCE_REVIEW":
+        return (
+            "One or more input receipts changed. This may reflect a fresh check, "
+            "reclassification or revision, not necessarily new observations."
+        )
+    return "No comparable earlier-week input-hash baseline exists."
+
+
 def csv_safe(value: object) -> str:
     data = str(value)
     return "'" + data if data.lstrip(" \t\r\n\ufeff").startswith(("=", "+", "-", "@")) else data
@@ -282,6 +313,18 @@ def _actions(state: dict[str, Any]) -> list[dict[str, str]]:
             "evidence_needed": "Named reviewer assessment, limitations and recorded sign-off",
         },
     ]
+    if state["source_continuity"] == "UNCHANGED_FROM_PRIOR_WEEK":
+        actions.insert(
+            0,
+            {
+                "priority": "P0",
+                "gate": "Unchanged source snapshot",
+                "finding": "All input hashes match the earlier weekly edition",
+                "evidence_needed": (
+                    "Fresh original-provider discovery and separate bounded qualification"
+                ),
+            },
+        )
     if state["stale"]:
         actions.insert(
             0,
@@ -320,6 +363,7 @@ def _markdown(
         "scientific admissibility, exposure effects or historical data accuracy.",
         f"- Evidence age: **{state['age_days']:.1f} days** — "
         f"{'STALE' if state['stale'] else 'within 7-day reporting threshold'}.",
+        f"- **Upstream continuity:** {continuity_note(state['source_continuity'])}",
         "",
         "## Harvestability and coverage",
         "| Measure | Latest count | Change from prior distinct week |",
@@ -540,6 +584,7 @@ footer{{border-top:1px solid var(--line);color:var(--muted);margin-top:2rem;padd
 <p class="hold"><strong>Scientific release: HOLD.</strong> Source discovery,
 URL reachability and software checks do not establish scientific quality,
 national coverage, exposure or health outcomes.</p>
+<p><strong>Source continuity:</strong> {esc(continuity_note(state["source_continuity"]))}</p>
 <div class="tiles">{cards}</div></section>
 <section><h2>All tracked metrics</h2>
 <p>Differences require an earlier distinct reporting week;
@@ -565,6 +610,7 @@ def build_weekly(
     week = f"{iso.year}-W{iso.week:02d}"
     state = gather(root, timestamp)
     prior = previous_week(archive, week)
+    state["source_continuity"] = source_continuity(state["digests"], prior)
     prior_metrics = prior.get("metrics") if prior else None
     changes = (
         {key: value - prior_metrics[key] for key, value in state["metrics"].items()}
@@ -579,6 +625,7 @@ def build_weekly(
         "metrics": state["metrics"],
         "evidence_as_of": state["evidence_as_of"],
         "source_digests": state["digests"],
+        "source_continuity": state["source_continuity"],
         "scientific_release": "HOLD",
         "national_completeness": "NOT_VERIFIED",
     }
@@ -631,6 +678,8 @@ def build_weekly(
         "evidence_as_of": state["evidence_as_of"],
         "evidence_age_days": state["age_days"],
         "freshness_status": "STALE" if state["stale"] else "WITHIN_SEVEN_DAYS",
+        "source_continuity": state["source_continuity"],
+        "freshness_review_required": state["stale"],
         "comparison_week": prior["week"] if changes is not None and prior else None,
         "comparisons_supported": changes is not None,
         "changes": changes,

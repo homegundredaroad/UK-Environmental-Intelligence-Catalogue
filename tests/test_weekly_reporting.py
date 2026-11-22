@@ -14,12 +14,14 @@ from ukei.weekly_reporting import (
     EvidenceError,
     build_weekly,
     checked_at,
+    continuity_note,
     count,
     csv_safe,
     main,
     read_json,
     read_rows,
     sha,
+    source_continuity,
 )
 
 
@@ -139,6 +141,8 @@ def test_weekly_suite_has_all_inspectable_outputs_and_holds_release(tmp_path: Pa
     assert receipt["scientific_publication_approved"] is False
     assert receipt["comparison_week"] is None
     assert receipt["comparisons_supported"] is False
+    assert receipt["source_continuity"] == "NO_PRIOR_BASELINE"
+    assert receipt["freshness_review_required"] is False
     assert receipt["metrics"]["datasets"] == 2
     assert receipt["metrics"]["eligible"] == 1
     assert receipt["metrics"]["policy"] == 1
@@ -239,6 +243,7 @@ def test_stale_evidence_remains_stale_when_weekly_renderer_runs(tmp_path: Path) 
     later = datetime(2026, 11, 25, 12, tzinfo=UTC)
     result = build_weekly(tmp_path, tmp_path / "out", now=later)
     assert result["freshness_status"] == "STALE"
+    assert result["freshness_review_required"] is True
     assert result["scientific_release"] == "HOLD"
     assert "STALE" in (tmp_path / "out/dashboard.html").read_text()
 
@@ -373,3 +378,38 @@ def test_unknown_prior_snapshot_format_is_ignored(tmp_path: Path) -> None:
     write_json(path, {"schema": "older-format", "week": "2026-W43"})
     receipt = build_weekly(tmp_path, tmp_path / "output", now=NOW, archive=tmp_path / "archive")
     assert receipt["comparisons_supported"] is False
+
+
+def test_source_hash_continuity_does_not_invent_new_harvesting() -> None:
+    hashes = {"harvest": "a" * 64, "catalogue": "b" * 64}
+    assert source_continuity(hashes, None) == "NO_PRIOR_BASELINE"
+    assert source_continuity(hashes, {"source_digests": {}}) == "NO_COMPARABLE_HASH_BASELINE"
+    assert source_continuity(hashes, {"source_digests": hashes}) == "UNCHANGED_FROM_PRIOR_WEEK"
+    assert (
+        source_continuity(hashes, {"source_digests": {"harvest": "x" * 64, "catalogue": "b" * 64}})
+        == "CHANGED_REQUIRES_SOURCE_REVIEW"
+    )
+    assert "No new underlying source snapshot" in continuity_note("UNCHANGED_FROM_PRIOR_WEEK")
+    assert "not necessarily new observations" in continuity_note("CHANGED_REQUIRES_SOURCE_REVIEW")
+
+
+def test_weekly_report_exposes_identical_upstream_receipts(
+    tmp_path: Path,
+) -> None:
+    fixture_repo(tmp_path)
+    first = build_weekly(tmp_path, tmp_path / "original", now=NOW)
+    original = json.loads((tmp_path / "original" / "snapshot.json").read_text())
+    assert first["source_continuity"] == "NO_PRIOR_BASELINE"
+    archive = tmp_path / "archive" / "2026-W44"
+    original["week"] = "2026-W44"
+    write_json(archive / "snapshot.json", original)
+    second = build_weekly(tmp_path, tmp_path / "second", archive=tmp_path / "archive", now=NOW)
+    assert second["comparison_week"] == "2026-W44"
+    assert second["source_continuity"] == "UNCHANGED_FROM_PRIOR_WEEK"
+    assert second["changes"]["datasets"] == 0
+    report = (tmp_path / "second" / "reviewer-report.md").read_text()
+    assert "No new underlying source snapshot" in report
+    assert "Unchanged source snapshot" in report
+    dashboard = (tmp_path / "second" / "dashboard.html").read_text()
+    assert "No new underlying source snapshot" in dashboard
+    assert second["scientific_release"] == "HOLD"

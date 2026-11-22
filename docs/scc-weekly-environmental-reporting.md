@@ -8,11 +8,18 @@ scientific findings or write to the separate SCC Air Quality repository.
 
 ## One simple current/archive structure
 
-- reports/weekly/current/ — latest SCC Nexus executive and scientific status.
-- reports/weekly/archive/YYYY-Www/ — permanent evidence snapshot for each ISO week.
+- reports/weekly/current/ — the latest SCC Nexus executive and scientific status.
+- reports/weekly/archive/YYYY-Www/ — latest published edition for that ISO week.
+- reports/weekly/revisions/YYYY-Www/<snapshot-hash>/ — immutable-by-workflow
+  evidence revision for each different source snapshot in the same ISO week.
 - GitHub Actions artifact — full matching pack, retained for 90 days.
 
-Runs Sundays 06:17 UTC, on first deployment and via manual workflow dispatch.
+The bounded source-qualification workflow is scheduled for Saturdays 04:23 UTC.
+The weekly reporter has Sunday 06:17 UTC and Sunday 18:47 UTC fallback
+schedules, plus manual runs and a successful-qualification follow-up.
+GitHub-hosted schedules can be significantly delayed or skipped: check actual
+run and commit timestamps, not the cron time. A duplicate edition with identical
+weekly input hashes is not republished just because the renderer ran again.
 
 | Output | Contents |
 |---|---|
@@ -33,8 +40,22 @@ national adapter/station gap ledgers. Mismatches fail closed, not silently.
 
 There is no weekly trend without an earlier distinct ISO-week snapshot.
 Re-running the same week does not count as an improvement. The reporting date
-is never substituted for the original evidence acquisition timestamp. A source
-receipt older than seven days is labelled STALE.
+is never substituted for the source-qualification timestamp. A receipt older
+than seven days is labelled STALE and demands a separate human review.
+
+A second, explicit **source-continuity** calculation compares the SHA-256
+digests of every committed input against the previous distinct week's
+snapshot. It distinguishes no baseline, unchanged input, and source changes
+which still require original-provider investigation. A fresh weekly dashboard
+is **not** a fresh environmental harvest. Repeating a bounded qualification
+does not update the original discovery time or validate a single observation.
+
+The archive/YYYY-Www edition is the last issued report for that week. If new
+qualified source receipts arrive during the same week, a new revision is saved
+under revisions/YYYY-Www/<snapshot-hash> before the week's latest edition
+changes. The workflow refuses to overwrite an existing source-hash revision.
+The Git history and original-provider archives remain the controlling record
+for independent reproducibility.
 
 ## Run in the existing repository or approved Colab environment
 
