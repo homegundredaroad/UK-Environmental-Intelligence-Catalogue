@@ -14,13 +14,14 @@
     "relevant": 0,
     "source_systems": 0
   },
-  "comparison_week": "2026-W45",
+  "comparison_week": "2026-W46",
   "comparisons_supported": true,
-  "evidence_age_days": 9.89,
+  "evidence_age_days": 16.89,
   "evidence_as_of": "2026-11-05T16:40:45+00:00",
   "external_review_completed": false,
+  "freshness_review_required": true,
   "freshness_status": "STALE",
-  "generated_at_utc": "2026-11-15T14:01:13.718390+00:00",
+  "generated_at_utc": "2026-11-22T14:00:05.162481+00:00",
   "metrics": {
     "adapters_missing": 15,
     "air_context": 284,
@@ -37,12 +38,13 @@
     "source_systems": 16
   },
   "national_completeness": "NOT_VERIFIED",
-  "report_week": "2026-W46",
+  "report_week": "2026-W47",
   "schema": "scc-environmental-intelligence-weekly-v1",
   "scientific_publication_approved": false,
   "scientific_release": "HOLD",
   "sibling_repositories_modified": false,
-  "snapshot_sha256": "caf2fa76607a8d2334bd8760c048f8b8f841388e5d32c1d6260d1efa91dca0f8",
+  "snapshot_sha256": "857c4ad56ef10b98b123faf18931c41a37df9310a2fad1543372aed027a8cde3",
+  "source_continuity": "UNCHANGED_FROM_PRIOR_WEEK",
   "source_sha256": {
     "catalogue": "30612071f11531a5ae7cf5fd37e33c8eb31a3269f26adb7c5f3c93cb88b69fd4",
     "coverage": "1c8eaffbe313b2d16bb879252237e20be5b2ab6bbc318834f8426766b492fa0e",

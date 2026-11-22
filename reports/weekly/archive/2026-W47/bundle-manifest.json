@@ -1,0 +1,15 @@
+{
+  "file_sha256": {
+    "action-register.csv": "307a4ff4b42320a5b7414f52be8dd0f73131dbb0e1e6bc1a6d9fa209aa7afaab",
+    "dashboard.html": "53a413f51c6d1021fa3c8932632b2acf3bc1f90ba7340ee7a49ed9152ef63f8c",
+    "gap-register.csv": "4049d622e0c4a2e05a573c81d2514b41a32514c665718e0e85a41213c1c77151",
+    "metrics.csv": "216b0a22dde10946feb38e227c200dab6aae195928951c9bef19243aaab65522",
+    "public-summary.md": "997b8cf3e896a54807f2cbb9a9913b36345c821d5ef033e4efc025a2e4a5f8ce",
+    "receipt.json": "75dee36df7f3f0e5cfbdeb9d003d64f9a95f11e1413e1e48e50ad59ea177f3ca",
+    "reviewer-report.md": "e7a7c986afba70e4e7a31da7732deb230eb71bd22100bf663eebdd35c0ee8738",
+    "snapshot.json": "857c4ad56ef10b98b123faf18931c41a37df9310a2fad1543372aed027a8cde3"
+  },
+  "human_approval_present": false,
+  "schema": "scc-weekly-artifact-manifest/1",
+  "week": "2026-W47"
+}
