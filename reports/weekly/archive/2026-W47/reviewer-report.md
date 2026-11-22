@@ -8,6 +8,7 @@
 - **Scientific decision: HOLD.** No claim of national completeness, scientific admissibility, exposure effects or historical data accuracy.
 - Evidence age: **0.0 days** — within 7-day reporting threshold.
 - **Upstream continuity:** One or more input receipts changed. This may reflect a fresh check, reclassification or revision, not necessarily new observations.
+- **Original catalogue handoff exported:** 2026-09-26T12:37:40+00:00 (57.1 days ago). This is an export receipt date, not an original-provider observation timestamp.
 
 ## Harvestability and coverage
 | Measure | Latest count | Change from prior distinct week |
@@ -27,11 +28,11 @@
 | Cross-media source signals | 403 | +0 |
 
 ## Priority recommendations
+- **P0 — Original discovery handoff age:** The upstream catalogue handoff is older than seven days. Evidence needed: New governed first-party discovery and original metadata version receipts.
 - **P0 — Official data connectors:** 15 required direct adapters absent. Evidence needed: Provider-native endpoint, bounded test and exact schema receipt.
 - **P0 — Monitoring network coverage:** 17 inventories lack reconciled stations. Evidence needed: Native active/closed station IDs and registry snapshots.
 - **P0 — Transport security:** 25 blocked URLs; not confirmed missing. Evidence needed: Source-verified redirect origins and secure allowlist review.
 - **P1 — Historical integrity:** Historical year-by-network completeness not demonstrated. Evidence needed: Original files, versions, checksums, stations and date grids.
-- **P1 — Scientific admissibility:** Independent measurement validation and corroboration incomplete. Evidence needed: Raw observations, units, QA flags, second-method reproduction.
 
 ## SCC and VVIP claim boundary
 SCC = Search, Corroborate, Communicate. VVIP = Validation, Verification, Integrity, Provenance. Discovery and software checks do not grant scientific publication permission. SCC Air Quality reacquires and validates evidence independently in its separate project.
@@ -42,6 +43,7 @@ SCC = Search, Corroborate, Communicate. VVIP = Validation, Verification, Integri
 ### 1. Acquisition provenance and evidence vintage
 The underlying focused discovery retained 16 successful searches from 16 queries. These are from the original recorded discovery run, not fresh weekly observations.
 A weekly report run reads previously committed files only. It does not prove any original-provider API or environmental station has been updated this week.
+Original discovery handoff exported: 2026-09-26T12:37:40+00:00 (distinct from the most recent endpoint qualification receipt).
 Previous comparable week: 2026-W46.
 
 ### 2. Authoritative source connector gaps
@@ -137,6 +139,7 @@ Safety denials remain UNKNOWN reachability. They must never be automatically unb
 ### 8. Reviewer evidence requests
 | Priority | Review gate | Current limitation | Required new evidence |
 |---|---|---|---|
+| P0 | Original discovery handoff age | The upstream catalogue handoff is older than seven days | New governed first-party discovery and original metadata version receipts |
 | P0 | Official data connectors | 15 required direct adapters absent | Provider-native endpoint, bounded test and exact schema receipt |
 | P0 | Monitoring network coverage | 17 inventories lack reconciled stations | Native active/closed station IDs and registry snapshots |
 | P0 | Transport security | 25 blocked URLs; not confirmed missing | Source-verified redirect origins and secure allowlist review |
