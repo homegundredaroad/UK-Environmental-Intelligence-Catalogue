@@ -2,8 +2,12 @@ name: SCC Nexus Weekly Environmental Intelligence
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ["Qualify SCC Air Quality Harvestability"]
+    types: [completed]
   schedule:
     - cron: "17 6 * * 0"
+    - cron: "47 18 * * 0"
   push:
     branches: [main]
     paths:
@@ -11,6 +15,9 @@ on:
       - "src/ukei/weekly_reporting.py"
       - "tests/test_weekly_reporting.py"
       - "docs/scc-weekly-environmental-reporting.md"
+      - "handoff/sccairquality/run-receipt.json"
+      - "handoff/sccairquality/handoff-receipt.json"
+      - "handoff/sccairquality/harvestability/**"
 
 permissions:
   contents: write
@@ -22,6 +29,7 @@ concurrency:
 jobs:
   report:
     name: Build independently inspectable SCC/VVIP weekly report
+    if: ${{ github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 12
 
@@ -65,6 +73,13 @@ jobs:
           assert receipt["schema"] == "scc-environmental-intelligence-weekly-v1"
           assert receipt["technical_reporting_gate"] == "PASS"
           assert receipt["scientific_release"] == "HOLD"
+          assert receipt["source_continuity"] in {
+              "NO_PRIOR_BASELINE", "NO_COMPARABLE_HASH_BASELINE",
+              "UNCHANGED_FROM_PRIOR_WEEK", "CHANGED_REQUIRES_SOURCE_REVIEW",
+          }
+          assert receipt["freshness_review_required"] is (
+              receipt["freshness_status"] == "STALE"
+          )
           assert receipt["scientific_publication_approved"] is False
           assert receipt["national_completeness"] == "NOT_VERIFIED"
           assert receipt["sibling_repositories_modified"] is False
@@ -76,6 +91,32 @@ jobs:
           if len(hashes) < 8:
               raise SystemExit("SCC weekly evidence bundle missing required outputs")
           print(f"PASS: {len(hashes)} verified outputs, scientific release HOLD")
+          PY
+
+      - name: Surface evidence age and qualification limits in GitHub Actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          receipt = json.loads(
+              (Path(os.environ["RUNNER_TEMP"]) / "scc-weekly" / "receipt.json").read_text()
+          )
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as handle:
+              handle.write("# SCC Nexus | Environmental Intelligence Weekly\n\n")
+              handle.write(f"**Week:** {receipt['report_week']}\n\n")
+              handle.write(f"**Original qualification as of:** {receipt['evidence_as_of']}\n\n")
+              handle.write(f"**Age:** {receipt['evidence_age_days']:.1f} days "
+                           f"({receipt['freshness_status']})\n\n")
+              handle.write(f"**Upstream receipt comparison:** "
+                           f"{receipt['source_continuity']}\n\n")
+              handle.write(f"**Distinct discovery datasets:** "
+                           f"{receipt['metrics']['datasets']}\n\n")
+              handle.write("**Scientific release: HOLD.** This does not certify "
+                           "environmental observations or country-wide completeness.\n\n")
           PY
 
       - name: Retain complete dated evidence pack
@@ -100,16 +141,28 @@ jobs:
           esac
           current="reports/weekly/current"
           archive="reports/weekly/archive/${week}"
-          mkdir -p "${current}" "${archive}"
+          fingerprint="$(sha256sum "${src}/snapshot.json" | cut -c1-16)"
+          revision="reports/weekly/revisions/${week}/${fingerprint}"
+          if [ -e "${archive}/snapshot.json" ] &&
+             cmp -s "${src}/snapshot.json" "${archive}/snapshot.json"; then
+            echo "Already published the same ISO-week source snapshot; retaining original evidence."
+            exit 0
+          fi
+          if [ -e "${revision}/snapshot.json" ]; then
+            echo "Immutable source-hash revision already exists; refusing overwrite." >&2
+            exit 1
+          fi
+          mkdir -p "${current}" "${archive}" "${revision}"
           for name in public-summary.md reviewer-report.md dashboard.html \
                       snapshot.json receipt.json bundle-manifest.json metrics.csv \
                       gap-register.csv action-register.csv; do
             cp "${src}/${name}" "${current}/${name}"
             cp "${src}/${name}" "${archive}/${name}"
+            cp "${src}/${name}" "${revision}/${name}"
           done
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f "${current}" "${archive}"
+          git add -f "${current}" "${archive}" "${revision}"
           if git diff --cached --quiet; then
             echo "No weekly evidence snapshot changes."
             exit 0
