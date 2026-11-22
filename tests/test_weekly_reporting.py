@@ -385,13 +385,12 @@ def test_source_hash_continuity_does_not_invent_new_harvesting() -> None:
     assert source_continuity(hashes, None) == "NO_PRIOR_BASELINE"
     assert source_continuity(hashes, {"source_digests": {}}) == "NO_COMPARABLE_HASH_BASELINE"
     assert source_continuity(hashes, {"source_digests": hashes}) == "UNCHANGED_FROM_PRIOR_WEEK"
-    assert source_continuity(
-        hashes, {"source_digests": {"harvest": "x" * 64, "catalogue": "b" * 64}}
-    ) == "CHANGED_REQUIRES_SOURCE_REVIEW"
-    assert "No new underlying source snapshot" in continuity_note("UNCHANGED_FROM_PRIOR_WEEK")
-    assert "not necessarily new observations" in continuity_note(
-        "CHANGED_REQUIRES_SOURCE_REVIEW"
+    assert (
+        source_continuity(hashes, {"source_digests": {"harvest": "x" * 64, "catalogue": "b" * 64}})
+        == "CHANGED_REQUIRES_SOURCE_REVIEW"
     )
+    assert "No new underlying source snapshot" in continuity_note("UNCHANGED_FROM_PRIOR_WEEK")
+    assert "not necessarily new observations" in continuity_note("CHANGED_REQUIRES_SOURCE_REVIEW")
 
 
 def test_weekly_report_exposes_identical_upstream_receipts(
@@ -404,9 +403,7 @@ def test_weekly_report_exposes_identical_upstream_receipts(
     archive = tmp_path / "archive" / "2026-W44"
     original["week"] = "2026-W44"
     write_json(archive / "snapshot.json", original)
-    second = build_weekly(
-        tmp_path, tmp_path / "second", archive=tmp_path / "archive", now=NOW
-    )
+    second = build_weekly(tmp_path, tmp_path / "second", archive=tmp_path / "archive", now=NOW)
     assert second["comparison_week"] == "2026-W44"
     assert second["source_continuity"] == "UNCHANGED_FROM_PRIOR_WEEK"
     assert second["changes"]["datasets"] == 0
