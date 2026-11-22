@@ -14,14 +14,14 @@ from ukei.weekly_reporting import (
     EvidenceError,
     build_weekly,
     checked_at,
+    continuity_note,
     count,
     csv_safe,
     main,
-    source_continuity,
-    continuity_note,
     read_json,
     read_rows,
     sha,
+    source_continuity,
 )
 
 
